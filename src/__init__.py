@@ -1,16 +1,8 @@
-from flask import Flask, render_template, Response, url_for, request
 import os
-import pandas as pd
-from .helpers import (
-    check_for_daily_updates,
-    get_new_ie_transactions,
-    get_last_n_days,
-    get_committee_ie,
-    load_content,
-    DISPLAY_COLUMNS,
-    CYCLE
-    )
-from datetime import datetime as dt
+
+from flask import Flask, url_for
+
+from .helpers import CYCLE, load_content
 
 
 def generate_app() -> Flask:
@@ -37,10 +29,10 @@ def home() -> str:
 
 
 @app.route('/committee/<committee_id>', methods=['GET', 'POST'])
-def committee_endpoint(committee_id: str):
+def committee_endpoint(committee_id: str) -> str:
     return load_content(committee_id)
 
 
 @app.route('/basic', methods=['GET', 'POST'])
-def query():
+def query() -> str:
     return "hello"

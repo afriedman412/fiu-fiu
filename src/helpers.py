@@ -1,12 +1,13 @@
-from sqlalchemy import create_engine, text
-from sqlalchemy.engine.base import Engine
 import os
+from datetime import datetime as dt
+from time import sleep
+from typing import List, Tuple, Union
+
 import pandas as pd
 import requests
-from time import sleep
-from datetime import datetime as dt
-from typing import List, Tuple, Union
-from flask import request, Response, render_template
+from flask import Response, render_template, request
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine.base import Engine
 
 DISPLAY_COLUMNS = [
     'fec_committee_name',
@@ -47,10 +48,10 @@ def make_conn() -> Engine:
 
 def pp_query(url: str, offset: int = 0) -> requests.Response:
     r = requests.get(
-            url=url,
-            headers={"X-API-Key": os.environ['PRO_PUBLICA_API_KEY']},
-            params={'offset': offset}
-        )
+        url=url,
+        headers={"X-API-Key": os.environ['PRO_PUBLICA_API_KEY']},
+        params={'offset': offset}
+    )
     return r
 
 
@@ -82,7 +83,7 @@ def check_for_daily_updates() -> bool:
 def get_last_n_days(
         n: int = 1,
         fallback_n: int = 12
-        ) -> pd.DataFrame:
+) -> pd.DataFrame:
     q = f"""
         SELECT *
         FROM fiu_pp
@@ -107,7 +108,7 @@ def get_new_ie_transactions():
     df = pd.read_sql("select distinct(unique_id) from fiu_pp", con=engine)
     url = "https://api.propublica.org/campaign-finance/v1/{}/independent_expenditures.json".format(
         os.environ['CYCLE']
-        )
+    )
     offset = 0
     bucket = []
     while True:
@@ -148,20 +149,24 @@ def load_content(committee_id: Union[str, None] = None) -> str:
         )
         filename = f"ie_{today}.csv"
         if request.method != "POST":
-            df_html = df.to_html()
+            df_html = df.to_html() if len(df) else None
             return render_template(
                 'index.html',
                 today=today,
                 new_transactions=new_transactions,
                 df_html=df_html
-                )
+            )
 
     else:
-        df = pd.DataFrame(get_committee_ie(committee_id))
-        df = df[DISPLAY_COLUMNS].sort_values(
-            ['date', 'date_received'],
-            ascending=False
-        )
+        committee_ie = get_committee_ie(committee_id)
+        df = pd.DataFrame(committee_ie)
+        try:
+            df = df[DISPLAY_COLUMNS].sort_values(
+                ['date', 'date_received'],
+                ascending=False
+            )
+        except KeyError:
+            pass
         filename = f"{committee_id}_ie.csv"
         if request.method != "POST":
             df_html = df.to_html()
@@ -169,7 +174,7 @@ def load_content(committee_id: Union[str, None] = None) -> str:
                 'committee_ie.html',
                 committee_id=committee_id,
                 df_html=df_html
-                )
+            )
 
     return Response(
         df.to_csv(index=False),
@@ -177,4 +182,4 @@ def load_content(committee_id: Union[str, None] = None) -> str:
         headers={
             "Content-disposition":
             "attachment; filename={}".format(filename)
-            })
+        })

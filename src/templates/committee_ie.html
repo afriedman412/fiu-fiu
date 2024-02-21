@@ -16,11 +16,15 @@
         <div class="the-body">
             <img width="300px"
                 src="{{ url_for('static', filename='images/Thundercracker1_1223717253.gif') }}">
+            {% if df_html %}
             <table class="data">
                 <tbody>
                     {{ df_html|safe }}
                 </tbody>
             </table>
+            {% else %}
+            <h2>Bad committee ID or no data found!</h2>
+            {% endif %}
             <h2>
                 <form action="/committee/{{ committee_id }}" method="post">
                     <button type="submit">Download CSV</button>
