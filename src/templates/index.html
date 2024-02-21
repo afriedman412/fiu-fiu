@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="stylesheet"
+            href="{{ url_for('static', filename='styles/styles.css') }}">
+        <title>Independent Expenditures</title>
+    </head>
+    <body>
+        <header>
+            <a href="/">
+                <h1>Daily Independent Expenditure Updates</h1>
+            </a>
+        </header>
+        <div class="the-body">
+            <img width="300px"
+                src="{{ url_for('static', filename='images/Thundercracker1_1223717253.gif') }}">
+            <h2>
+                {% if new_transactions %}
+                <p style="color: red;">New transactions for {{ today }}!!!</p>
+                {% else %}
+                <p style="color: brown;">No new transactions today ({{ today
+                    }})</p>
+                {% endif %}
+            </h2>
+            <table class="data">
+                <tbody>
+                    {{ df_html|safe }}
+                </tbody>
+            </table>
+            <h2>
+                <form action="/download_csv" method="post">
+                    <button type="submit">Download CSV</button>
+                </form>
+            </h2>
+        </div>
+        <p class="attribution">
+            <em>*** by <a href="https://dnpdata.com">Andy
+                    Friedman</a></em></p>
+    </body>
+</html>
