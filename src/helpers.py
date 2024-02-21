@@ -43,7 +43,7 @@ def make_conn() -> Engine:
 
 
 def check_for_daily_updates() -> bool:
-    latest_date = query_table('select max(date) from `fec-ie` limit 1')
+    latest_date = query_table('select max(date) from fiu_pp limit 1')
     latest_date = latest_date[0][0]
     return dt.strftime(dt.today(), "%Y-%m-%d") == latest_date
 
@@ -54,7 +54,7 @@ def get_last_n_days(
         ) -> pd.DataFrame:
     q = f"""
         SELECT *
-        FROM `fec-ie`
+        FROM fiu_pp
         WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL {n} DAY)
         ORDER BY date DESC
         ;"""
@@ -63,7 +63,7 @@ def get_last_n_days(
         return output
     else:
         q = f"""
-            SELECT * FROM `fec-ie`
+            SELECT * FROM fiu_pp
             ORDER BY date DESC
             LIMIT {fallback_n}
             """
@@ -73,7 +73,7 @@ def get_last_n_days(
 
 def get_new_ie_transactions():
     engine = make_conn()
-    df = pd.read_sql("select distinct(unique_id) from `fec-ie`", con=engine)
+    df = pd.read_sql("select distinct(unique_id) from fiu_pp", con=engine)
     url = "https://api.propublica.org/campaign-finance/v1/2024/independent_expenditures.json"
     offset = 0
     bucket = []
@@ -102,7 +102,7 @@ def get_new_ie_transactions():
                 break
     if len(bucket) > 0:
         new_transactions = pd.DataFrame(bucket)
-        new_transactions.to_sql("fec-ie", con=engine, if_exists="append")
+        new_transactions.to_sql("fiu_pp", con=engine, if_exists="append")
         return f"Successfully updated with {len(bucket)} new transactions."
     else:
         return "No new transactions."
