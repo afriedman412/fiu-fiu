@@ -5,7 +5,8 @@ import pandas as pd
 import requests
 from time import sleep
 from datetime import datetime as dt
-from typing import List, Tuple
+from typing import List, Tuple, Union
+from flask import request, Response, render_template
 
 DISPLAY_COLUMNS = [
     'fec_committee_name',
@@ -135,3 +136,45 @@ def get_new_ie_transactions():
     else:
         return "No new transactions."
 
+
+def load_content(committee_id: Union[str, None] = None) -> str:
+    if committee_id is None:
+        new_transactions = check_for_daily_updates()
+        today = dt.now().strftime("%Y-%m-%d")
+        df = pd.DataFrame(get_last_n_days(0))
+        df = df[DISPLAY_COLUMNS].sort_values(
+            ['date', 'date_received'],
+            ascending=False
+        )
+        filename = f"ie_{today}.csv"
+        if request.method != "POST":
+            df_html = df.to_html()
+            return render_template(
+                'index.html',
+                today=today,
+                new_transactions=new_transactions,
+                df_html=df_html
+                )
+
+    else:
+        df = pd.DataFrame(get_committee_ie(committee_id))
+        df = df[DISPLAY_COLUMNS].sort_values(
+            ['date', 'date_received'],
+            ascending=False
+        )
+        filename = f"{committee_id}_ie.csv"
+        if request.method != "POST":
+            df_html = df.to_html()
+            return render_template(
+                'committee_ie.html',
+                committee_id=committee_id,
+                df_html=df_html
+                )
+
+    return Response(
+        df.to_csv(index=False),
+        mimetype="text/csv",
+        headers={
+            "Content-disposition":
+            "attachment; filename={}".format(filename)
+            })
