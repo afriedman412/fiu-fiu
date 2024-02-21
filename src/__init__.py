@@ -8,6 +8,7 @@ from .helpers import CYCLE, load_content
 def generate_app() -> Flask:
     app = Flask(__name__)
     os.environ['CYCLE'] = CYCLE
+    os.environ['EMAIL_SENT'] = "False"
     if not os.getenv("PRO_PUBLICA_API_KEY"):
         from dotenv import load_dotenv
         load_dotenv()

@@ -8,6 +8,8 @@ import requests
 from flask import Response, render_template, request
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine.base import Engine
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 
 DISPLAY_COLUMNS = [
     'fec_committee_name',
@@ -24,6 +26,8 @@ DISPLAY_COLUMNS = [
 ]
 
 CYCLE = "2024"
+EMAIL_FROM = "afriedman412@gmail.com"
+EMAIL_TO = "david@readsludge.com"
 
 
 def query_table(q: str) -> List[Tuple]:
@@ -133,6 +137,8 @@ def get_new_ie_transactions():
     if len(bucket) > 0:
         new_transactions = pd.DataFrame(bucket)
         new_transactions.to_sql("fiu_pp", con=engine, if_exists="append")
+        today = dt.now().strftime("%Y-%m-%d")
+        send_email(f"New Independent Expenditures for {today}!", new_transactions.to_json())
         return f"Successfully updated with {len(bucket)} new transactions."
     else:
         return "No new transactions."
@@ -183,3 +189,20 @@ def load_content(committee_id: Union[str, None] = None) -> str:
             "Content-disposition":
             "attachment; filename={}".format(filename)
         })
+
+
+def send_email(subject, body):
+    message = Mail(
+        from_email=EMAIL_FROM,
+        to_emails=[EMAIL_FROM, EMAIL_TO],
+        subject=subject,
+        html_content=body)
+    try:
+        sg = SendGridAPIClient(os.environ.get('SENDGRID_API_KEY'))
+        response = sg.send(message)
+        assert response.status_code == 202, f"Bad status code: {response.status_code}"
+        print("Email sent successfully!")
+        return True
+    except Exception as e:
+        print("Error while sending email:", e)
+        return False
