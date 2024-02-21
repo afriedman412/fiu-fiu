@@ -21,6 +21,8 @@ DISPLAY_COLUMNS = [
     'support_or_oppose',
 ]
 
+CYCLE = "2024"
+
 
 def query_table(q: str) -> List[Tuple]:
     engine = make_conn()
@@ -40,6 +42,34 @@ def make_conn() -> Engine:
     )
     engine = create_engine(sql_string)
     return engine
+
+
+def pp_query(url: str, offset: int = 0) -> requests.Response:
+    r = requests.get(
+            url=url,
+            headers={"X-API-Key": os.environ['PRO_PUBLICA_API_KEY']},
+            params={'offset': offset}
+        )
+    return r
+
+
+def get_committee_ie(committee_id: str):
+    url = "https://api.propublica.org/campaign-finance/v1/{}/committees/{}/independent_expenditures.json"
+    url = url.format(
+        os.environ['CYCLE'],
+        committee_id
+    )
+    results = []
+    offset = 0
+    while True:
+        r = pp_query(url, offset)
+        if r.status_code == 200 and r.json().get('results'):
+            print(len(r.json().get('results')))
+            results += r.json().get('results')
+            offset += 20
+        else:
+            break
+    return results
 
 
 def check_for_daily_updates() -> bool:
@@ -74,16 +104,14 @@ def get_last_n_days(
 def get_new_ie_transactions():
     engine = make_conn()
     df = pd.read_sql("select distinct(unique_id) from fiu_pp", con=engine)
-    url = "https://api.propublica.org/campaign-finance/v1/2024/independent_expenditures.json"
+    url = "https://api.propublica.org/campaign-finance/v1/{}/independent_expenditures.json".format(
+        os.environ['CYCLE']
+        )
     offset = 0
     bucket = []
     while True:
         print(offset)
-        r = requests.get(
-            url=url,
-            headers={"X-API-Key": os.environ['PRO_PUBLICA_API_KEY']},
-            params={'offset': offset}
-        )
+        r = pp_query(url, offset)
         sleep(2)
         if r.status_code != 200:
             print(f"bad status code: {r.status_code}")
@@ -106,3 +134,4 @@ def get_new_ie_transactions():
         return f"Successfully updated with {len(bucket)} new transactions."
     else:
         return "No new transactions."
+

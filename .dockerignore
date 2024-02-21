@@ -29,6 +29,7 @@ share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+this_will_fail
 
 # pyenv / IDE
 .python-version

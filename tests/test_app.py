@@ -2,8 +2,8 @@ import pytest
 from flask_testing import TestCase
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError
-from src.helpers import make_conn
-
+from src.helpers import make_conn, pp_query
+import os
 from app import app
 
 
@@ -30,3 +30,11 @@ def test_create_engine_failure():
     with pytest.raises(OperationalError):
         with engine.connect() as conn:
             conn.execute(text("show tables"))
+
+
+def test_pp_query():
+    url = "https://api.propublica.org/campaign-finance/v1/{}/independent_expenditures.json".format(
+        os.environ['CYCLE']
+        )
+    r = pp_query(url)
+    assert r.status_code == 200
