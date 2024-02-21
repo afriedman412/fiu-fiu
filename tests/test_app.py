@@ -20,8 +20,8 @@ class TestFolio(TestCase):
     def test_endpoints(self):
         home_response = self.client.get("/")
         self.assert200(home_response)
-        committee_respones = self.client.get("/committee/B00BS")
-        self.assert200(committee_respones)
+        committee_response = self.client.get("/committee/B00BS")
+        self.assert200(committee_response)
 
 
 def test_create_engine_success():

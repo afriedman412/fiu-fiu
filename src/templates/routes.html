@@ -1,0 +1,14 @@
+<html>
+    <body>
+        <section>
+            {% for route in routes %}
+            <div class="box">
+                <p> <strong>Endpoint:</strong> {{ route.endpoint }}</p>
+                <p><strong>URL:</strong> {{ route.url }}</p>
+                <p> <strong>Methods:</strong> {{ route.methods | join(', ')
+                    }}</p>
+            </div>
+            {% endfor %}
+        </section>
+    </body>
+</html>

@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask, url_for
+from flask import Flask, url_for, render_template
 
 from .helpers import CYCLE, load_content
 
@@ -36,3 +36,17 @@ def committee_endpoint(committee_id: str) -> str:
 @app.route('/basic', methods=['GET', 'POST'])
 def query() -> str:
     return "hello"
+
+
+@app.route('/routes')
+def index():
+    # Create available routes UI on home page.
+    routes = []
+    for rule in app.url_map.iter_rules():
+        routes.append({
+            "endpoint": rule.endpoint,
+            "methods": list(rule.methods),
+            "url": str(rule)
+        })
+    return render_template('routes.html', routes=routes)
+
