@@ -1,15 +1,13 @@
 import os
 from datetime import datetime as dt
-from time import sleep
-from typing import List, Tuple, Union
+from typing import List, Tuple
 
-import pandas as pd
+import pytz
 import requests
-from flask import Response, render_template, request
-from sqlalchemy import create_engine, text
-from sqlalchemy.engine.base import Engine
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine.base import Engine
 
 DISPLAY_COLUMNS = [
     'fec_committee_name',
@@ -26,8 +24,15 @@ DISPLAY_COLUMNS = [
 ]
 
 CYCLE = "2024"
+TABLE = "fiu_pp"
 EMAIL_FROM = "afriedman412@gmail.com"
 EMAIL_TO = "david@readsludge.com"
+
+
+def get_today() -> str:
+    tz = pytz.timezone('America/New_York')
+    today = dt.utcnow().astimezone(tz)
+    return today.strftime("%Y-%m-%d")
 
 
 def query_table(q: str) -> List[Tuple]:
@@ -59,136 +64,10 @@ def pp_query(url: str, offset: int = 0) -> requests.Response:
     return r
 
 
-def get_committee_ie(committee_id: str):
-    url = "https://api.propublica.org/campaign-finance/v1/{}/committees/{}/independent_expenditures.json"
-    url = url.format(
-        os.environ['CYCLE'],
-        committee_id
-    )
-    results = []
-    offset = 0
-    while True:
-        r = pp_query(url, offset)
-        if r.status_code == 200 and r.json().get('results'):
-            print(len(r.json().get('results')))
-            results += r.json().get('results')
-            offset += 20
-        else:
-            break
-    return results
-
-
 def check_for_daily_updates() -> bool:
-    latest_date = query_table('select max(date) from fiu_pp limit 1')
+    latest_date = query_table(f'select max(date) from {TABLE} limit 1')
     latest_date = latest_date[0][0]
-    return dt.strftime(dt.today(), "%Y-%m-%d") == latest_date
-
-
-def get_last_n_days(
-        n: int = 1,
-        fallback_n: int = 12
-) -> pd.DataFrame:
-    q = f"""
-        SELECT *
-        FROM fiu_pp
-        WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL {n} DAY)
-        ORDER BY date DESC
-        ;"""
-    output = query_table(q)
-    if output:
-        return output
-    else:
-        q = f"""
-            SELECT * FROM fiu_pp
-            ORDER BY date DESC
-            LIMIT {fallback_n}
-            """
-        output = query_table(q)
-    return output
-
-
-def get_new_ie_transactions():
-    engine = make_conn()
-    df = pd.read_sql("select distinct(unique_id) from fiu_pp", con=engine)
-    url = "https://api.propublica.org/campaign-finance/v1/{}/independent_expenditures.json".format(
-        os.environ['CYCLE']
-    )
-    offset = 0
-    bucket = []
-    while True:
-        print(offset)
-        r = pp_query(url, offset)
-        sleep(2)
-        if r.status_code != 200:
-            print(f"bad status code: {r.status_code}")
-            break
-        else:
-            new_transactions = [
-                r_ for r_ in r.json()['results']
-                if r_['unique_id'] not in df['unique_id'].values
-            ]
-            if new_transactions:
-                print(len(new_transactions))
-                bucket += new_transactions
-                offset += 20
-            else:
-                print("done!")
-                break
-    if len(bucket) > 0:
-        new_transactions = pd.DataFrame(bucket)
-        new_transactions.to_sql("fiu_pp", con=engine, if_exists="append")
-        today = dt.now().strftime("%Y-%m-%d")
-        send_email(f"New Independent Expenditures for {today}!", new_transactions.to_json())
-        return f"Successfully updated with {len(bucket)} new transactions."
-    else:
-        return "No new transactions."
-
-
-def load_content(committee_id: Union[str, None] = None) -> str:
-    if committee_id is None:
-        new_transactions = check_for_daily_updates()
-        today = dt.now().strftime("%Y-%m-%d")
-        df = pd.DataFrame(get_last_n_days(0))
-        df = df[DISPLAY_COLUMNS].sort_values(
-            ['date', 'date_received'],
-            ascending=False
-        )
-        filename = f"ie_{today}.csv"
-        if request.method != "POST":
-            df_html = df.to_html() if len(df) else None
-            return render_template(
-                'index.html',
-                today=today,
-                new_transactions=new_transactions,
-                df_html=df_html
-            )
-
-    else:
-        committee_ie = get_committee_ie(committee_id)
-        df = pd.DataFrame(committee_ie)
-        try:
-            df = df[DISPLAY_COLUMNS].sort_values(
-                ['date', 'date_received'],
-                ascending=False
-            )
-        except KeyError:
-            pass
-        filename = f"{committee_id}_ie.csv"
-        if request.method != "POST":
-            df_html = df.to_html()
-            return render_template(
-                'committee_ie.html',
-                committee_id=committee_id,
-                df_html=df_html
-            )
-
-    return Response(
-        df.to_csv(index=False),
-        mimetype="text/csv",
-        headers={
-            "Content-disposition":
-            "attachment; filename={}".format(filename)
-        })
+    return os.getenv("TODAY") == latest_date
 
 
 def send_email(subject, body):

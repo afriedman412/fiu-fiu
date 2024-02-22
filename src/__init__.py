@@ -1,14 +1,15 @@
 import os
 
-from flask import Flask, url_for, render_template
+from flask import Flask, render_template, url_for
 
-from .helpers import CYCLE, load_content
+from .helpers import CYCLE, get_today
+from .src import get_new_ie_transactions, load_content
 
 
 def generate_app() -> Flask:
     app = Flask(__name__)
     os.environ['CYCLE'] = CYCLE
-    os.environ['EMAIL_SENT'] = "False"
+    os.environ['TODAY'] = get_today()
     if not os.getenv("PRO_PUBLICA_API_KEY"):
         from dotenv import load_dotenv
         load_dotenv()
@@ -19,9 +20,19 @@ def generate_app() -> Flask:
 app = generate_app()
 
 
+app.route("/update")(get_new_ie_transactions)
+
+
 @app.route("/favicon.ico")
 def favicon():
     return url_for('static', filename='data:,')
+
+
+@app.route("/date-check")
+def check_date() -> str:
+    return f"""
+    TODAY set to {os.getenv('TODAY', 'set_error')}
+    """
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -35,12 +46,12 @@ def committee_endpoint(committee_id: str) -> str:
 
 
 @app.route('/basic', methods=['GET', 'POST'])
-def query() -> str:
+def basically() -> str:
     return "hello"
 
 
 @app.route('/routes', methods=['GET'])
-def index() -> str:
+def get_routes() -> str:
     # Create available routes UI on home page.
     routes = []
     for rule in app.url_map.iter_rules():
@@ -50,4 +61,3 @@ def index() -> str:
             "url": str(rule)
         })
     return render_template('routes.html', routes=routes)
-
