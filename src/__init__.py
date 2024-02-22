@@ -39,8 +39,8 @@ def query() -> str:
     return "hello"
 
 
-@app.route('/routes')
-def index():
+@app.route('/routes', methods=['GET'])
+def index() -> str:
     # Create available routes UI on home page.
     routes = []
     for rule in app.url_map.iter_rules():
