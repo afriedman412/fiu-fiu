@@ -40,10 +40,10 @@ def get_new_ie_transactions():
     if len(bucket) > 0:
         new_transactions = pd.DataFrame(bucket)
         new_transactions.to_sql(TABLE, con=engine, if_exists="append")
-        send_email(
-            f"New Independent Expenditures for {os.getenv('TODAY', 'error')}!",
-            new_transactions.to_json()
-        )
+        # send_email(
+        #     f"New Independent Expenditures for {os.getenv('TODAY', 'error')}!",
+        #     new_transactions.to_json()
+        # )
         return f"Successfully updated with {len(bucket)} new transactions."
     else:
         return "No new transactions."
