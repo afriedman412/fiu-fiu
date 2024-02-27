@@ -31,7 +31,8 @@ EMAIL_COLUMNS = [
     'state',
     'district',
     'support_or_oppose',
-    'date'
+    'date',
+    'date_received'
 ]
 
 CYCLE = "2024"

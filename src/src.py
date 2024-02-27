@@ -15,6 +15,7 @@ def get_today_transactions():
     #  this should be os.environ['CYCLE']
     url = os.path.join(BASE_URL, "independent_expenditures/{}/{}/{}.json")
     url = url.format(*get_today().split("-"))
+    print(url)
     bucket = []
     offset = 0
     while True:
@@ -38,23 +39,23 @@ def get_today_transactions():
 
 
 def get_exisiting_today_ids() -> List[str]:
-    old_today_ids = [
+    existing_today_ids = [
         i[0]
         for i in
         query_table(
-            "select unique_id from fiu_pp where date='{}'".format(
+            "select unique_id from fiu_pp where date_received='{}'".format(
                 os.getenv("TODAY")
             )
         )]
-    return old_today_ids
+    return existing_today_ids
 
 
 def get_new_ie_transactions():
     today_transactions = get_today_transactions()
-    old_today_ids = get_exisiting_today_ids()
+    existing_today_ids = get_exisiting_today_ids()
     new_today_transactions = [
         t for t in today_transactions
-        if t['unique_id'] not in old_today_ids
+        if t['unique_id'] not in existing_today_ids
     ]
     if new_today_transactions:
         new_today_transactions_df = pd.DataFrame(new_today_transactions)
@@ -70,7 +71,9 @@ def get_new_ie_transactions():
 def load_content(committee_id: Union[str, None] = None) -> str:
     if committee_id is None:
         transactions = get_today_transactions()
+        new_transactions = True
         if not transactions:
+            new_transactions = False
             transactions = get_fallback_data()
         today = os.getenv("TODAY", "error")
         df = pd.DataFrame(transactions)
@@ -84,7 +87,7 @@ def load_content(committee_id: Union[str, None] = None) -> str:
             return render_template(
                 'index.html',
                 today=today,
-                transactions=transactions,
+                new_transactions=new_transactions,
                 df_html=df_html
             )
 
