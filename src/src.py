@@ -1,52 +1,55 @@
 import os
 from time import sleep
-from typing import Union
+from typing import Union, List
 
 import pandas as pd
 from flask import Response, render_template, request
 
-from .helpers import (DISPLAY_COLUMNS, TABLE, check_for_daily_updates,
-                      get_today, make_conn, pp_query, query_table, send_email)
+from .helpers import (DISPLAY_COLUMNS, EMAIL_COLUMNS, TABLE,
+                      check_for_daily_updates, get_today, make_conn, pp_query,
+                      query_table, send_email)
+
+
+def get_today_transactions():
+    #  this should be os.environ['CYCLE']
+    url = "https://api.propublica.org/campaign-finance/v1/2024/ independent_expenditures/{}/{}/{}.json"
+    url = url.format(*get_today().split("-"))
+    bucket = []
+    offset = 0
+    while True:
+        transactions = pp_query(url, offset=offset).json()['results']
+        if transactions:
+            bucket += transactions
+            offset += 20
+            sleep(3)
+        else:
+            break
+    return bucket
 
 
 def get_new_ie_transactions():
-    os.environ['TODAY'] = get_today()
-    engine = make_conn()
-    df = pd.read_sql(f"select distinct(unique_id) from {TABLE}", con=engine)
-    url = "https://api.propublica.org/campaign-finance/v1/{}/independent_expenditures.json".format(
-        os.environ['CYCLE']
-    )
-    offset = 0
-    bucket = []
-    while True:
-        print(offset)
-        r = pp_query(url, offset)
-        sleep(2)
-        if r.status_code != 200:
-            print(f"bad status code: {r.status_code}")
-            break
-        else:
-            new_transactions = [
-                r_ for r_ in r.json()['results']
-                if r_['unique_id'] not in df['unique_id'].values
-            ]
-            if new_transactions:
-                print(len(new_transactions))
-                bucket += new_transactions
-                offset += 20
-            else:
-                print("done!")
-                break
-    if len(bucket) > 0:
-        new_transactions = pd.DataFrame(bucket)
-        new_transactions.to_sql(TABLE, con=engine, if_exists="append")
-        # send_email(
-        #     f"New Independent Expenditures for {os.getenv('TODAY', 'error')}!",
-        #     new_transactions.to_json()
-        # )
-        return f"Successfully updated with {len(bucket)} new transactions."
-    else:
-        return "No new transactions."
+    today_transactions = get_today_transactions()
+    old_today_ids = [
+        i[0]
+        for i in
+        query_table(
+            "select unique_id from fiu_pp where date='{}'".format(
+                os.getenv("TODAY")
+            )
+        )]
+    new_today_transactions = [
+        t for t in today_transactions
+        if t['unique_id'] not in old_today_ids
+    ]
+    if new_today_transactions:
+        new_today_transactions_df = pd.DataFrame(new_today_transactions)
+        engine = make_conn()
+        new_today_transactions_df.to_sql(TABLE, con=engine, if_exists="append")
+        send_email(
+            f"New Independent Expenditures for {os.getenv('TODAY', 'error')}!",
+            new_today_transactions_df[EMAIL_COLUMNS].to_html()
+        )
+    return new_today_transactions
 
 
 def load_content(committee_id: Union[str, None] = None) -> str:

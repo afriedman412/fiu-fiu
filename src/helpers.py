@@ -23,6 +23,17 @@ DISPLAY_COLUMNS = [
     'support_or_oppose',
 ]
 
+EMAIL_COLUMNS = [
+    'fec_committee_name',
+    'candidate_name',
+    'amount',
+    'office',
+    'state',
+    'district',
+    'support_or_oppose',
+    'date'
+]
+
 CYCLE = "2024"
 TABLE = "fiu_pp"
 EMAIL_FROM = "afriedman412@gmail.com"
@@ -32,7 +43,8 @@ EMAIL_TO = "david@readsludge.com"
 def get_today() -> str:
     tz = pytz.timezone('America/New_York')
     today = dt.utcnow().astimezone(tz)
-    return today.strftime("%Y-%m-%d")
+    today = today.strftime("%Y-%m-%d")
+    return today
 
 
 def query_table(q: str) -> List[Tuple]:
