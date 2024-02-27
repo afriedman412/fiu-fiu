@@ -6,7 +6,8 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError
 
 from app import app
-from src.helpers import make_conn, pp_query
+from src.helpers import make_conn, pp_query, BASE_URL
+from src.src import get_today_transactions
 
 
 class TestFolio(TestCase):
@@ -41,8 +42,11 @@ def test_create_engine_failure():
 
 
 def test_pp_query():
-    url = "https://api.propublica.org/campaign-finance/v1/{}/independent_expenditures.json".format(
-        os.environ['CYCLE']
-    )
+    url = os.path.join(BASE_URL, "independent_expenditures.json")
     r = pp_query(url)
     assert r.status_code == 200
+
+
+def test_today_transactions():
+    bucket = get_today_transactions()
+    assert isinstance(bucket, list)

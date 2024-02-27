@@ -35,6 +35,7 @@ EMAIL_COLUMNS = [
 ]
 
 CYCLE = "2024"
+BASE_URL = "https://api.propublica.org/campaign-finance/v1/{}/".format(CYCLE)
 TABLE = "fiu_pp"
 EMAIL_FROM = "afriedman412@gmail.com"
 EMAIL_TO = "david@readsludge.com"

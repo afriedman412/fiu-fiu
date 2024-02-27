@@ -1,29 +1,39 @@
 import os
 from time import sleep
-from typing import Union, List
+from typing import Union
 
 import pandas as pd
 from flask import Response, render_template, request
 
-from .helpers import (DISPLAY_COLUMNS, EMAIL_COLUMNS, TABLE,
+from .helpers import (DISPLAY_COLUMNS, EMAIL_COLUMNS, TABLE, BASE_URL,
                       check_for_daily_updates, get_today, make_conn, pp_query,
                       query_table, send_email)
 
 
 def get_today_transactions():
+    #  add test for failed pp query when auth gets figured out
     #  this should be os.environ['CYCLE']
-    url = "https://api.propublica.org/campaign-finance/v1/2024/ independent_expenditures/{}/{}/{}.json"
+    url = os.path.join(BASE_URL, "independent_expenditures/{}/{}/{}.json")
     url = url.format(*get_today().split("-"))
     bucket = []
     offset = 0
     while True:
-        transactions = pp_query(url, offset=offset).json()['results']
-        if transactions:
-            bucket += transactions
-            offset += 20
-            sleep(3)
+        r = pp_query(url, offset=offset)
+        if r.status_code == 200:
+            transactions = r.json()['results']
+            if transactions:
+                bucket += transactions
+                offset += 20
+                sleep(3)
+            else:
+                break
         else:
-            break
+            raise Exception(", ".join(
+                [
+                    str(r.status_code),
+                    r.json().get(
+                        "message", "error retrieving error message"
+                    )]))
     return bucket
 
 
@@ -100,7 +110,7 @@ def load_content(committee_id: Union[str, None] = None) -> str:
 
 
 def get_committee_ie(committee_id: str):
-    url = "https://api.propublica.org/campaign-finance/v1/{}/committees/{}/independent_expenditures.json"
+    url = os.path.join(BASE_URL, "committees/{}/independent_expenditures.json")
     url = url.format(
         os.environ['CYCLE'],
         committee_id
