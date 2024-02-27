@@ -1,12 +1,12 @@
 import os
 from time import sleep
-from typing import Union
+from typing import Union, List
 
 import pandas as pd
 from flask import Response, render_template, request
 
 from .helpers import (DISPLAY_COLUMNS, EMAIL_COLUMNS, TABLE, BASE_URL,
-                      check_for_daily_updates, get_today, make_conn, pp_query,
+                      get_today, make_conn, pp_query,
                       query_table, send_email)
 
 
@@ -37,8 +37,7 @@ def get_today_transactions():
     return bucket
 
 
-def get_new_ie_transactions():
-    today_transactions = get_today_transactions()
+def get_exisiting_today_ids() -> List[str]:
     old_today_ids = [
         i[0]
         for i in
@@ -47,6 +46,12 @@ def get_new_ie_transactions():
                 os.getenv("TODAY")
             )
         )]
+    return old_today_ids
+
+
+def get_new_ie_transactions():
+    today_transactions = get_today_transactions()
+    old_today_ids = get_exisiting_today_ids()
     new_today_transactions = [
         t for t in today_transactions
         if t['unique_id'] not in old_today_ids
@@ -64,9 +69,11 @@ def get_new_ie_transactions():
 
 def load_content(committee_id: Union[str, None] = None) -> str:
     if committee_id is None:
-        new_transactions = check_for_daily_updates()
+        transactions = get_today_transactions()
+        if not transactions:
+            transactions = get_fallback_data()
         today = os.getenv("TODAY", "error")
-        df = pd.DataFrame(get_last_n_days(0))
+        df = pd.DataFrame(transactions)
         df = df[DISPLAY_COLUMNS].sort_values(
             ['date', 'date_received'],
             ascending=False
@@ -77,7 +84,7 @@ def load_content(committee_id: Union[str, None] = None) -> str:
             return render_template(
                 'index.html',
                 today=today,
-                new_transactions=new_transactions,
+                transactions=transactions,
                 df_html=df_html
             )
 
@@ -128,24 +135,25 @@ def get_committee_ie(committee_id: str):
     return results
 
 
-def get_last_n_days(
-        n: int = 1,
-        fallback_n: int = 12
+def get_fallback_data(
+        n: int = 12,
+        last_days: int = 0
 ) -> pd.DataFrame:
-    q = f"""
-        SELECT *
-        FROM {TABLE}
-        WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL {n} DAY)
-        ORDER BY date DESC
-        ;"""
-    output = query_table(q)
-    if output:
-        return output
+    if last_days:
+        q = f"""
+            SELECT *
+            FROM {TABLE}
+            WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL {last_days} DAY)
+            ORDER BY date DESC
+            ;"""
+        output = query_table(q)
+        if output:
+            return output
     else:
         q = f"""
             SELECT * FROM {TABLE}
             ORDER BY date DESC
-            LIMIT {fallback_n}
+            LIMIT {n}
             """
         output = query_table(q)
     return output
