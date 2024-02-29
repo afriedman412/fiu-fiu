@@ -9,7 +9,7 @@ from sendgrid.helpers.mail import Mail
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine.base import Engine
 
-DISPLAY_COLUMNS = [
+DATA_COLUMNS = [
     'fec_committee_name',
     'candidate_name',
     'office',
@@ -23,23 +23,11 @@ DISPLAY_COLUMNS = [
     'support_or_oppose',
 ]
 
-EMAIL_COLUMNS = [
-    'fec_committee_name',
-    'candidate_name',
-    'amount',
-    'office',
-    'state',
-    'district',
-    'support_or_oppose',
-    'date',
-    'date_received'
-]
-
 CYCLE = "2024"
 BASE_URL = "https://api.propublica.org/campaign-finance/v1/{}/".format(CYCLE)
 TABLE = "fiu_pp"
 EMAIL_FROM = "afriedman412@gmail.com"
-EMAIL_TO = "david@readsludge.com"
+EMAILS_TO = ["david@readsludge.com", "donny@readsludge.com"]
 
 
 def get_today() -> str:
@@ -87,7 +75,7 @@ def check_for_daily_updates() -> bool:
 def send_email(subject, body):
     message = Mail(
         from_email=EMAIL_FROM,
-        to_emails=[EMAIL_FROM, EMAIL_TO],
+        to_emails=EMAILS_TO + EMAIL_FROM,
         subject=subject,
         html_content=body)
     try:

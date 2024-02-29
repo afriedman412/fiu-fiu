@@ -1,18 +1,16 @@
 import os
 from time import sleep
-from typing import Union, List
+from typing import List, Union
 
 import pandas as pd
 from flask import Response, render_template, request
 
-from .helpers import (DISPLAY_COLUMNS, EMAIL_COLUMNS, TABLE, BASE_URL,
-                      get_today, make_conn, pp_query,
-                      query_table, send_email)
+from .helpers import (BASE_URL, DATA_COLUMNS, TABLE, get_today, make_conn,
+                      pp_query, query_table, send_email)
 
 
 def get_today_transactions():
     #  add test for failed pp query when auth gets figured out
-    #  this should be os.environ['CYCLE']
     url = os.path.join(BASE_URL, "independent_expenditures/{}/{}/{}.json")
     url = url.format(*get_today().split("-"))
     print(url)
@@ -63,7 +61,7 @@ def get_new_ie_transactions():
         new_today_transactions_df.to_sql(TABLE, con=engine, if_exists="append")
         send_email(
             f"New Independent Expenditures for {os.getenv('TODAY', 'error')}!",
-            new_today_transactions_df[EMAIL_COLUMNS].to_html()
+            new_today_transactions_df[DATA_COLUMNS].to_html()
         )
     return new_today_transactions
 
@@ -77,7 +75,7 @@ def load_content(committee_id: Union[str, None] = None) -> str:
             transactions = get_fallback_data()
         today = os.getenv("TODAY", "error")
         df = pd.DataFrame(transactions)
-        df = df[DISPLAY_COLUMNS].sort_values(
+        df = df[DATA_COLUMNS].sort_values(
             ['date', 'date_received'],
             ascending=False
         )
@@ -95,7 +93,7 @@ def load_content(committee_id: Union[str, None] = None) -> str:
         committee_ie = get_committee_ie(committee_id)
         df = pd.DataFrame(committee_ie)
         try:
-            df = df[DISPLAY_COLUMNS].sort_values(
+            df = df[DATA_COLUMNS].sort_values(
                 ['date', 'date_received'],
                 ascending=False
             )

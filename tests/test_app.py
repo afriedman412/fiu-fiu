@@ -6,7 +6,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError
 
 from app import app
-from src.helpers import make_conn, pp_query, BASE_URL
+from src.helpers import BASE_URL, make_conn, pp_query
 from src.src import get_today_transactions
 
 
