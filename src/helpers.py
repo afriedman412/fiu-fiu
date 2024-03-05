@@ -75,7 +75,7 @@ def check_for_daily_updates() -> bool:
 def send_email(subject, body):
     message = Mail(
         from_email=EMAIL_FROM,
-        to_emails=EMAILS_TO + EMAIL_FROM,
+        to_emails=EMAILS_TO + [EMAIL_FROM],
         subject=subject,
         html_content=body)
     try:
