@@ -7,7 +7,7 @@ from sqlalchemy.exc import OperationalError
 
 from app import app
 from src.helpers import BASE_URL, make_conn, pp_query
-from src.src import get_today_transactions
+from src.src import get_today_transactions, get_exisiting_ids
 
 
 class TestFolio(TestCase):
@@ -50,3 +50,15 @@ def test_pp_query():
 def test_today_transactions():
     bucket = get_today_transactions()
     assert isinstance(bucket, list)
+
+
+def test_existing_ids():
+    url = os.path.join(BASE_URL, 'independent_expenditures/2024/03/05.json')
+    r = pp_query(url)
+    assert r.status_code == 200
+    existing_ids = get_exisiting_ids()
+    new_data = [
+        r_ for r_ in r.json()['results']
+        if r_['unique_id'] not in existing_ids
+        ]
+    assert new_data == []

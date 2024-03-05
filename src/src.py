@@ -13,7 +13,6 @@ def get_today_transactions():
     #  add test for failed pp query when auth gets figured out
     url = os.path.join(BASE_URL, "independent_expenditures/{}/{}/{}.json")
     url = url.format(*get_today().split("-"))
-    print(url)
     bucket = []
     offset = 0
     while True:
@@ -36,24 +35,22 @@ def get_today_transactions():
     return bucket
 
 
-def get_exisiting_today_ids() -> List[str]:
+def get_exisiting_ids() -> List[str]:
     existing_today_ids = [
         i[0]
         for i in
         query_table(
-            "select unique_id from fiu_pp where date_received='{}'".format(
-                os.getenv("TODAY")
-            )
-        )]
+            "select distinct unique_id from fiu_pp"
+            )]
     return existing_today_ids
 
 
 def get_new_ie_transactions():
     today_transactions = get_today_transactions()
-    existing_today_ids = get_exisiting_today_ids()
+    existing_ids = get_exisiting_ids()
     new_today_transactions = [
         t for t in today_transactions
-        if t['unique_id'] not in existing_today_ids
+        if t['unique_id'] not in existing_ids
     ]
     if new_today_transactions:
         new_today_transactions_df = pd.DataFrame(new_today_transactions)
