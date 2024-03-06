@@ -2,7 +2,7 @@ import os
 
 from flask import Flask, render_template, url_for
 
-from .helpers import CYCLE, get_today
+from .helpers import BASE_URL, CYCLE, get_today
 from .src import get_new_ie_transactions, load_content
 
 
@@ -48,6 +48,12 @@ def committee_endpoint(committee_id: str) -> str:
 @app.route('/basic', methods=['GET', 'POST'])
 def basically() -> str:
     return "hello"
+
+
+# @app.route('/date-check/<year>/<month>/<day>')
+# def date_check(year: str, month: str, day: str) -> str:
+#     url = os.path.join(BASE_URL, )
+#     return
 
 
 @app.route('/routes', methods=['GET'])

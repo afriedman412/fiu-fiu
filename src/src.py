@@ -1,6 +1,6 @@
 import os
 from time import sleep
-from typing import List, Union
+from typing import Any, List, Union
 
 import pandas as pd
 from flask import Response, render_template, request
@@ -41,11 +41,11 @@ def get_exisiting_ids() -> List[str]:
         for i in
         query_table(
             "select distinct unique_id from fiu_pp"
-            )]
+        )]
     return existing_today_ids
 
 
-def get_new_ie_transactions():
+def get_new_ie_transactions(send_email_trigger: bool = True):
     today_transactions = get_today_transactions()
     existing_ids = get_exisiting_ids()
     new_today_transactions = [
@@ -56,10 +56,11 @@ def get_new_ie_transactions():
         new_today_transactions_df = pd.DataFrame(new_today_transactions)
         engine = make_conn()
         new_today_transactions_df.to_sql(TABLE, con=engine, if_exists="append")
-        send_email(
-            f"New Independent Expenditures for {os.getenv('TODAY', 'error')}!",
-            new_today_transactions_df[DATA_COLUMNS].to_html()
-        )
+        if send_email_trigger:
+            send_email(
+                f"New Independent Expenditures for {os.getenv('TODAY', 'error')}!",
+                new_today_transactions_df[DATA_COLUMNS].to_html()
+            )
     return new_today_transactions
 
 
@@ -114,22 +115,24 @@ def load_content(committee_id: Union[str, None] = None) -> str:
         })
 
 
-def get_committee_ie(committee_id: str):
+def get_committee_ie(committee_id: str) -> List[Any]:
     url = os.path.join(BASE_URL, "committees/{}/independent_expenditures.json")
     url = url.format(
-        os.environ['CYCLE'],
         committee_id
     )
     results = []
     offset = 0
     while True:
         r = pp_query(url, offset)
-        if r.status_code == 200 and r.json().get('results'):
-            print(len(r.json().get('results')))
-            results += r.json().get('results')
-            offset += 20
+        if r.status_code == 200:
+            if r.json().get('results'):
+                print(len(r.json().get('results')))
+                results += r.json().get('results')
+                offset += 20
+            else:
+                break
         else:
-            break
+            raise Exception(f"Bad Status Code: {r.status_code}, {r.content}")
     return results
 
 

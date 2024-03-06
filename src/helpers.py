@@ -23,6 +23,7 @@ DATA_COLUMNS = [
     'support_or_oppose',
 ]
 
+DT_FORMAT = "%Y-%m-%d"
 CYCLE = "2024"
 BASE_URL = "https://api.propublica.org/campaign-finance/v1/{}/".format(CYCLE)
 TABLE = "fiu_pp"
@@ -33,7 +34,7 @@ EMAILS_TO = ["david@readsludge.com", "donny@readsludge.com"]
 def get_today() -> str:
     tz = pytz.timezone('America/New_York')
     today = dt.utcnow().astimezone(tz)
-    today = today.strftime("%Y-%m-%d")
+    today = today.strftime(DT_FORMAT)
     return today
 
 

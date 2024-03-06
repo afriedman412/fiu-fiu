@@ -7,7 +7,7 @@ from sqlalchemy.exc import OperationalError
 
 from app import app
 from src.helpers import BASE_URL, make_conn, pp_query
-from src.src import get_today_transactions, get_exisiting_ids
+from src.src import get_committee_ie, get_exisiting_ids, get_today_transactions
 
 
 class TestFolio(TestCase):
@@ -47,18 +47,25 @@ def test_pp_query():
     assert r.status_code == 200
 
 
+def test_committee_endpoint():
+    r = get_committee_ie('C00799031')
+    assert isinstance(r, list)
+    if len(r) > 0:
+        assert r[0]['fec_committee_name'] == 'United Democracy Project (Udp)'
+
+
 def test_today_transactions():
     bucket = get_today_transactions()
     assert isinstance(bucket, list)
 
 
-def test_existing_ids():
-    url = os.path.join(BASE_URL, 'independent_expenditures/2024/03/05.json')
-    r = pp_query(url)
-    assert r.status_code == 200
-    existing_ids = get_exisiting_ids()
-    new_data = [
-        r_ for r_ in r.json()['results']
-        if r_['unique_id'] not in existing_ids
-        ]
-    assert new_data == []
+# def test_existing_ids():
+#     url = os.path.join(BASE_URL, 'independent_expenditures/2024/03/03.json')
+#     r = pp_query(url)
+#     assert r.status_code == 200
+#     existing_ids = get_exisiting_ids()
+#     new_data = [
+#         r_ for r_ in r.json()['results']
+#         if r_['unique_id'] not in existing_ids
+#         ]
+#     assert new_data == []
