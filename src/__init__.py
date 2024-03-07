@@ -1,9 +1,11 @@
 import os
 
-from flask import Flask, render_template, url_for
+from flask import Flask, render_template, request, url_for
 
 from .helpers import BASE_URL, CYCLE, get_today
-from .src import get_new_ie_transactions, load_content
+from .src import (format_dates_output, get_data_by_date,
+                  get_new_ie_transactions, load_content, get_daily_filings,
+                  download_dates_output)
 
 
 def generate_app() -> Flask:
@@ -50,10 +52,34 @@ def basically() -> str:
     return "hello"
 
 
-# @app.route('/date-check/<year>/<month>/<day>')
-# def date_check(year: str, month: str, day: str) -> str:
-#     url = os.path.join(BASE_URL, )
-#     return
+@app.route("/dates", methods=['GET', 'POST'])
+def date_endpoint() -> str:
+    if request.method == 'POST':
+        if 'forms' in request.values:
+            data = get_daily_filings(request.values.get('datepicker'))
+            data = {k: v.to_html() for k, v in data.items()}
+        else:
+            checked = [k.replace("-", "_") for k in [
+                'date',
+                'date-received',
+                'dissemination-date',
+                'api'
+            ] if request.values.get(k) == 'on']
+            data = get_data_by_date(
+                request.values.get('datepicker'),
+                *checked
+            )
+            data = format_dates_output(data)
+        if 'download' in request.values:
+            download_dates_output(data)
+            return
+        else:
+            return render_template(
+                'dates.html',
+                data=data
+            )
+    else:
+        return render_template('dates.html')
 
 
 @app.route('/routes', methods=['GET'])

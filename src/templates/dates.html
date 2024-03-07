@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="stylesheet"
+            href="{{ url_for('static', filename='styles/styles.css') }}">
+        <title>Independent Expenditures</title>
+    </head>
+    <body>
+        <header>
+            <a href="/">
+                <h1>Daily Independent Expenditures By Date</h1>
+            </a>
+        </header>
+        <div class="the-body">
+            <img width="300px"
+                src="{{ url_for('static', filename='images/Thundercracker1_1223717253.gif') }}">
+            {% if not data %}
+            <form action="/dates" method="post">
+                <label for="datepicker">Select a Date:</label><br>
+                <input type="date" id="datepicker" name="datepicker"><br><br>
+
+                <input type="radio" id="forms" name="forms">
+                <label for="forms">Get 24- and 48- Hour Forms</label><br>
+
+                <input type="checkbox" id="api" name="api" checked>
+                <label for="api">API</label><br>
+
+                <input type="checkbox" id="date" name="date" checked>
+                <label for="date">Date</label><br>
+
+                <input type="checkbox" id="date-received"
+                    name="date-received" checked>
+                <label for="date-received">Date Received</label><br>
+
+                <input type="checkbox" id="dissemination-date"
+                    name="dissemination-date" checked>
+                <label for="dissemination-date">Dissemination
+                    Date</label><br><br>
+
+                <input type="submit" value="Submit">
+            </form>
+            {% else %}
+            {% for k,df_html in data.items() %}
+            <table class="data">
+                <h2>{{ k.upper() }}</h2>
+                <tbody>
+                    {{ df_html|safe }}
+                </tbody>
+            </table>
+            {% endfor %}
+            {% endif %}
+
+        </div>
+        <p class="attribution">
+            <em>*** by <a href="https://dnpdata.com">Andy
+                    Friedman</a></em></p>
+    </body>
+</html>

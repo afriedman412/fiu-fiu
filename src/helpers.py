@@ -11,16 +11,19 @@ from sqlalchemy.engine.base import Engine
 
 DATA_COLUMNS = [
     'fec_committee_name',
+    'fec_committee_id',
     'candidate_name',
     'office',
     'state',
     'district',
     'amount',
     'date',
+    'date_received',
+    'dissemination_date',
     'purpose',
     'payee',
-    'date_received',
     'support_or_oppose',
+    'transaction_id'
 ]
 
 DT_FORMAT = "%Y-%m-%d"
@@ -64,7 +67,10 @@ def pp_query(url: str, offset: int = 0) -> requests.Response:
         headers={"X-API-Key": os.environ['PRO_PUBLICA_API_KEY']},
         params={'offset': offset}
     )
-    return r
+    if r.status_code == 200:
+        return r
+    else:
+        raise Exception(f"Bad Status Code: {r.status_code}, {r.content}")
 
 
 def check_for_daily_updates() -> bool:

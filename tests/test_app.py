@@ -7,7 +7,7 @@ from sqlalchemy.exc import OperationalError
 
 from app import app
 from src.helpers import BASE_URL, make_conn, pp_query
-from src.src import get_committee_ie, get_exisiting_ids, get_today_transactions
+from src.src import get_committee_ie, get_data_by_date, get_today_transactions
 
 
 class TestFolio(TestCase):
@@ -21,7 +21,7 @@ class TestFolio(TestCase):
     def test_endpoints(self):
         home_response = self.client.get("/")
         self.assert200(home_response)
-        committee_response = self.client.get("/committee/B00BS")
+        committee_response = self.client.get("/committee/C00864215")
         self.assert200(committee_response)
 
 
@@ -50,14 +50,21 @@ def test_pp_query():
 def test_committee_endpoint():
     r = get_committee_ie('C00799031')
     assert isinstance(r, list)
-    if len(r) > 0:
-        assert r[0]['fec_committee_name'] == 'United Democracy Project (Udp)'
+    assert len(r) > 0
+    assert r[0]['fec_committee_name'] == 'United Democracy Project (Udp)'
 
 
 def test_today_transactions():
     bucket = get_today_transactions()
     assert isinstance(bucket, list)
 
+
+def test_data_by_date():
+    output = get_data_by_date("2024-02-27", 'date', 'date_received', 'dissemination_date', 'api')
+    assert [k for k in output] == [
+        'date', 'date_received', 'dissemination_date', 'api'
+    ]
+    assert [len(output[k]) for k in output] == [14, 29, 29, 20]
 
 # def test_existing_ids():
 #     url = os.path.join(BASE_URL, 'independent_expenditures/2024/03/03.json')
