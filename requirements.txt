@@ -25,3 +25,4 @@ urllib3==2.2.0
 Werkzeug==3.0.1
 sendgrid==6.11.0
 bs4==0.0.2
+regex==2023.12.25

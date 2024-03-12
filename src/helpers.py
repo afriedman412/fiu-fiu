@@ -1,5 +1,8 @@
 import os
+import regex as re
 from datetime import datetime as dt
+from functools import wraps
+from time import sleep
 from typing import List, Tuple
 
 import pytz
@@ -8,7 +11,6 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine.base import Engine
-import re
 
 DATA_COLUMNS = [
     'fec_committee_name',
@@ -106,7 +108,7 @@ def send_email(subject, body):
         return False
 
 
-def encode_df_url(value: str, url: str=None) -> str:
+def encode_df_url(value: str, url: str = None) -> str:
     if url:
         url = url.format(*[value] * url.count("{}"))
     else:
@@ -131,10 +133,20 @@ def encode_df_urls(df, column_info=COLUMNS_TO_CONVERT):
     return df
 
 
-
 def soup_to_dict_helper(regex: str, text: str) -> str:
     t = re.search(f"({regex})(.+)", text)
     try:
         return t.group(2)
     except AttributeError:
         return None
+
+
+def sleep_after_execution(sleep_time):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            result = func(*args, **kwargs)
+            sleep(sleep_time)
+            return result
+        return wrapper
+    return decorator

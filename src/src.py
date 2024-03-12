@@ -3,13 +3,13 @@ from time import sleep
 from typing import Any, Dict, List, Union
 
 import pandas as pd
-from flask import Response, render_template, request
 import requests
 from bs4 import BeautifulSoup
-import re
+from flask import Response, render_template, request
 
-from .helpers import (BASE_URL, DATA_COLUMNS, TABLE, get_today, make_conn,
-                      pp_query, query_table, send_email, soup_to_dict_helper, encode_df_urls)
+from .helpers import (BASE_URL, DATA_COLUMNS, TABLE, encode_df_urls, get_today,
+                      make_conn, pp_query, query_table, send_email,
+                      sleep_after_execution, soup_to_dict_helper)
 
 
 def get_today_transactions():
@@ -81,7 +81,7 @@ def load_content(committee_id: Union[str, None] = None) -> str:
             ascending=False
         )
         df = encode_df_urls(df)
-        
+
         filename = f"ie_{today}.csv"
         if request.method != "POST":
             df_html = df.to_html(escape=False) if len(df) else None
@@ -94,24 +94,29 @@ def load_content(committee_id: Union[str, None] = None) -> str:
 
     else:
         committee_ie = get_committee_ie(committee_id)
-        committee_name = committee_ie[0].get('fec_committee_name')
-        df = pd.DataFrame(committee_ie)
-        try:
-            df = df[DATA_COLUMNS].sort_values(
-                ['date', 'date_received'],
-                ascending=False
-            )
-            df = encode_df_urls(df)
-        except KeyError:
-            pass
+        if not committee_ie:
+            committee_name = get_committee_name(committee_id)
+            df = "No Results Found"
+        else:
+            committee_name = committee_ie[0].get('fec_committee_name')
+            df = pd.DataFrame(committee_ie)
+            try:
+                df = df[DATA_COLUMNS].sort_values(
+                    ['date', 'date_received'],
+                    ascending=False
+                )
+                df = encode_df_urls(df)
+            except KeyError:
+                pass
+            df = df.to_html(escape=False)
+
         filename = f"{committee_id}_ie.csv"
         if request.method != "POST":
-            df_html = df.to_html(escape=False)
             return render_template(
                 'committee_ie.html',
                 committee_name=committee_name,
                 committee_id=committee_id,
-                df_html=df_html
+                df_html=df
             )
 
     return Response(
@@ -137,6 +142,7 @@ def get_committee_ie(committee_id: str) -> List[Any]:
                 print(len(r.json().get('results')))
                 results += r.json().get('results')
                 offset += 20
+                sleep(3)
             else:
                 break
         else:
@@ -201,14 +207,14 @@ def get_data_by_date(date: str, *args) -> dict[str, pd.DataFrame]:
 
 def get_daily_filings(date: str) -> dict[str, pd.DataFrame]:
     url = os.path.join(
-            BASE_URL,
-            "filings/{}/{}/{}.json".format(
-                *date.split("-"))
-        )
+        BASE_URL,
+        "filings/{}/{}/{}.json".format(
+            *date.split("-"))
+    )
     api_data = pp_query(url)
     if api_data.json()['results']:
         api_data = [
-            f for f in api_data.json()['results'] 
+            f for f in api_data.json()['results']
             if f['form_type'] in ['F6', 'F24']
         ]
     else:
@@ -219,7 +225,7 @@ def get_daily_filings(date: str) -> dict[str, pd.DataFrame]:
 def format_dates_output(
         data: Dict[str, pd.DataFrame],
         COLUMNS=DATA_COLUMNS
-        ) -> Dict[str, str]:
+) -> Dict[str, str]:
     """
     Processes output of `get_data_by_date` for web presentation.
 
@@ -249,8 +255,11 @@ def download_dates_output(data: Dict[str, pd.DataFrame]):
             "attachment; filename={}".format("date_data.csv")
         })
 
+
+@sleep_after_execution(3)
 def parse_24_48(url):
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'}
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'}
     r = requests.get(url, headers=headers)
     if r.status_code != 200:
         return
@@ -282,3 +291,12 @@ def parse_24_48(url):
             output['expenditures_link'] = os.path.join(url, "se")
             output['form_type'] = "24"
     return output
+
+
+def get_committee_name(committee_id: str):
+    url = os.path.join(BASE_URL, f"committees/{committee_id}.json")
+    r = pp_query(url)
+    try:
+        return r.json()['results'][0]['name']
+    except KeyError:
+        return ""

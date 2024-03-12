@@ -1,12 +1,12 @@
 import os
 
-from flask import Flask, render_template, request, url_for, redirect, jsonify
 import pandas as pd
+from flask import Flask, jsonify, redirect, render_template, request, url_for
 
 from .helpers import BASE_URL, CYCLE, get_today
-from .src import (format_dates_output, get_data_by_date,
-                  get_new_ie_transactions, load_content, get_daily_filings,
-                  download_dates_output, parse_24_48)
+from .src import (download_dates_output, format_dates_output,
+                  get_daily_filings, get_data_by_date, get_new_ie_transactions,
+                  load_content, parse_24_48)
 
 
 def generate_app() -> Flask:
@@ -95,8 +95,8 @@ def date_endpoint() -> str:
         return render_template(
             'dates.html',
             date=os.environ['TODAY']
-            )
-    
+        )
+
 
 @app.route('/forms/<date>')
 def expand_forms(date) -> str:
@@ -104,8 +104,8 @@ def expand_forms(date) -> str:
     results = [parse_24_48(url) for url in data['24- and 48- Hour Filings']['fec_uri']]
     split_results = {
         f'{k} HOUR NOTICE:': pd.DataFrame(
-            [r for r in results if r['form_type']==k]
-            )
+            [r for r in results if r['form_type'] == k]
+        )
         for k in ['24', '48']
     }
     split_results = format_dates_output(split_results, COLUMNS=None)
@@ -113,8 +113,7 @@ def expand_forms(date) -> str:
         'dates.html',
         data=split_results,
         date=date
-        )
-
+    )
 
 
 @app.route('/routes', methods=['GET'])
