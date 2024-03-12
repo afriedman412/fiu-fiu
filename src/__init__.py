@@ -1,11 +1,12 @@
 import os
 
-from flask import Flask, render_template, request, url_for
+from flask import Flask, render_template, request, url_for, redirect, jsonify
+import pandas as pd
 
 from .helpers import BASE_URL, CYCLE, get_today
 from .src import (format_dates_output, get_data_by_date,
                   get_new_ie_transactions, load_content, get_daily_filings,
-                  download_dates_output)
+                  download_dates_output, parse_24_48)
 
 
 def generate_app() -> Flask:
@@ -37,9 +38,19 @@ def check_date() -> str:
     """
 
 
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/')
 def home() -> str:
     return load_content()
+
+
+@app.route('/committee')
+def reroute_committee():
+    """I added this after I baked the code to load comittee info into load_content()"""
+    committee_id = request.args.get("committee_id")
+    if committee_id:
+        return redirect(f"/committee/{committee_id}")
+    else:
+        return render_template("committee_ie.html")
 
 
 @app.route('/committee/<committee_id>', methods=['GET', 'POST'])
@@ -55,9 +66,10 @@ def basically() -> str:
 @app.route("/dates", methods=['GET', 'POST'])
 def date_endpoint() -> str:
     if request.method == 'POST':
+        date = request.values.get('datepicker')
         if 'forms' in request.values:
-            data = get_daily_filings(request.values.get('datepicker'))
-            data = {k: v.to_html() for k, v in data.items()}
+            data = get_daily_filings(date)
+            data = format_dates_output(data, None)
         else:
             checked = [k.replace("-", "_") for k in [
                 'date',
@@ -66,7 +78,7 @@ def date_endpoint() -> str:
                 'api'
             ] if request.values.get(k) == 'on']
             data = get_data_by_date(
-                request.values.get('datepicker'),
+                date,
                 *checked
             )
             data = format_dates_output(data)
@@ -76,10 +88,33 @@ def date_endpoint() -> str:
         else:
             return render_template(
                 'dates.html',
-                data=data
+                data=data,
+                date=date
             )
     else:
-        return render_template('dates.html')
+        return render_template(
+            'dates.html',
+            date=os.environ['TODAY']
+            )
+    
+
+@app.route('/forms/<date>')
+def expand_forms(date) -> str:
+    data = get_daily_filings(date)
+    results = [parse_24_48(url) for url in data['24- and 48- Hour Filings']['fec_uri']]
+    split_results = {
+        f'{k} HOUR NOTICE:': pd.DataFrame(
+            [r for r in results if r['form_type']==k]
+            )
+        for k in ['24', '48']
+    }
+    split_results = format_dates_output(split_results, COLUMNS=None)
+    return render_template(
+        'dates.html',
+        data=split_results,
+        date=date
+        )
+
 
 
 @app.route('/routes', methods=['GET'])

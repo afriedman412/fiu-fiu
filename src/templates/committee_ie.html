@@ -10,26 +10,36 @@
     <body>
         <header>
             <a href="/">
-                <h1>Independent Expenditures for {{ committee_id }}</h1>
+                <h1>Independent Expenditures by Committee</h1>
             </a>
         </header>
         <div class="the-body">
             <img width="300px"
                 src="{{ url_for('static', filename='images/Thundercracker1_1223717253.gif') }}">
             {% if df_html %}
+            <h1>>>> {{ committee_id }} ({{ committee_name }})</h1>
+            <p>
             <table class="data">
                 <tbody>
                     {{ df_html|safe }}
                 </tbody>
             </table>
-            {% else %}
-            <h2>Bad committee ID or no data found!</h2>
-            {% endif %}
+            </p>
             <h2>
                 <form action="/committee/{{ committee_id }}" method="post">
                     <button type="submit">Download CSV</button>
                 </form>
             </h2>
+            {% else %}
+            <p>
+                <form action="/committee" method="GET">
+                    <label for="committee_id">Enter committee ID:</label><br>
+                    <input type="text" id="committee_id" name="committee_id"><br><br>
+                    <input type="submit" value="Submit">
+                </form>
+            </p>
+            {% endif %}
+            
         </div>
         <p class="attribution">
             <em>*** by <a href="https://dnpdata.com">Andy

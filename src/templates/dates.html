@@ -6,6 +6,28 @@
         <link rel="stylesheet"
             href="{{ url_for('static', filename='styles/styles.css') }}">
         <title>Independent Expenditures</title>
+        <script>
+            window.onload = function() {
+                // Get form elements
+                const formsRadio = document.getElementById('forms');
+                const apiCheckbox = document.getElementById('api');
+                const dateCheckbox = document.getElementById('date');
+                const dateReceivedCheckbox = document.getElementById('date-received');
+                const disseminationDateCheckbox = document.getElementById('dissemination-date');
+            
+                // Add event listener to forms radio button
+                formsRadio.addEventListener('change', function() {
+                    if (formsRadio.checked) {
+                        apiCheckbox.checked = false;
+                        dateCheckbox.checked = false;
+                        dateReceivedCheckbox.checked = false;
+                        disseminationDateCheckbox.checked = false;
+                    }
+                });
+            
+                // Add any additional logic here if needed
+            };
+            </script>
     </head>
     <body>
         <header>
@@ -16,13 +38,32 @@
         <div class="the-body">
             <img width="300px"
                 src="{{ url_for('static', filename='images/Thundercracker1_1223717253.gif') }}">
-            {% if not data %}
+            {% if data %}
+            <h1>>>> {{ date }}</h1>
+            <a href="#new_search">Click here for a new search...</a>
+            {% for k,df_html in data.items() %}
+            <table class="data">
+                <h2>{{ k.upper() }}</h2>
+                {% if "24- and 48- Hour Filings" in data %}
+                <p><a href="/forms/{{ date }}">(Click here to expand 24/48 Hour form data...)</a></p>
+                {% endif %}
+                <tbody>
+                    {{ df_html|safe }}
+                </tbody>
+            </table>
+            <br>
+            <p><a name="new_search"><hr></a></p>
+            {% endfor %}
+            {% endif %}
             <form action="/dates" method="post">
-                <label for="datepicker">Select a Date:</label><br>
-                <input type="date" id="datepicker" name="datepicker"><br><br>
-
-                <input type="radio" id="forms" name="forms">
-                <label for="forms">Get 24- and 48- Hour Forms</label><br>
+                <p><label for="datepicker">Select a Date:</label>
+                </p>
+                <input type="date" id="datepicker" name="datepicker" value="{{ date }}"><br>
+                
+                <p>
+                <input type="radio" id="datecheker" name="forms" checked>
+                <label for="datechecker">Check existing data by date type...</label>
+                </p>
 
                 <input type="checkbox" id="api" name="api" checked>
                 <label for="api">API</label><br>
@@ -37,20 +78,17 @@
                 <input type="checkbox" id="dissemination-date"
                     name="dissemination-date" checked>
                 <label for="dissemination-date">Dissemination
-                    Date</label><br><br>
+                    Date</label>
 
+                    <p>or...</p>
+
+                <p>
+                    <input type="radio" id="forms" name="forms">
+                    <label for="forms">Get 24- and 48- Hour Forms</label>
+                </p>
                 <input type="submit" value="Submit">
             </form>
-            {% else %}
-            {% for k,df_html in data.items() %}
-            <table class="data">
-                <h2>{{ k.upper() }}</h2>
-                <tbody>
-                    {{ df_html|safe }}
-                </tbody>
-            </table>
-            {% endfor %}
-            {% endif %}
+            
 
         </div>
         <p class="attribution">

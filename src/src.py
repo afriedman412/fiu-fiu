@@ -4,9 +4,12 @@ from typing import Any, Dict, List, Union
 
 import pandas as pd
 from flask import Response, render_template, request
+import requests
+from bs4 import BeautifulSoup
+import re
 
 from .helpers import (BASE_URL, DATA_COLUMNS, TABLE, get_today, make_conn,
-                      pp_query, query_table, send_email)
+                      pp_query, query_table, send_email, soup_to_dict_helper, encode_df_urls)
 
 
 def get_today_transactions():
@@ -77,9 +80,11 @@ def load_content(committee_id: Union[str, None] = None) -> str:
             ['date', 'date_received'],
             ascending=False
         )
+        df = encode_df_urls(df)
+        
         filename = f"ie_{today}.csv"
         if request.method != "POST":
-            df_html = df.to_html() if len(df) else None
+            df_html = df.to_html(escape=False) if len(df) else None
             return render_template(
                 'index.html',
                 today=today,
@@ -89,19 +94,22 @@ def load_content(committee_id: Union[str, None] = None) -> str:
 
     else:
         committee_ie = get_committee_ie(committee_id)
+        committee_name = committee_ie[0].get('fec_committee_name')
         df = pd.DataFrame(committee_ie)
         try:
             df = df[DATA_COLUMNS].sort_values(
                 ['date', 'date_received'],
                 ascending=False
             )
+            df = encode_df_urls(df)
         except KeyError:
             pass
         filename = f"{committee_id}_ie.csv"
         if request.method != "POST":
-            df_html = df.to_html()
+            df_html = df.to_html(escape=False)
             return render_template(
                 'committee_ie.html',
+                committee_name=committee_name,
                 committee_id=committee_id,
                 df_html=df_html
             )
@@ -198,20 +206,29 @@ def get_daily_filings(date: str) -> dict[str, pd.DataFrame]:
                 *date.split("-"))
         )
     api_data = pp_query(url)
-    api_data = [
-        f for f in api_data.json()['results'] 
-        if f['form_type'] in ['F6', 'F24']
-    ]
+    if api_data.json()['results']:
+        api_data = [
+            f for f in api_data.json()['results'] 
+            if f['form_type'] in ['F6', 'F24']
+        ]
+    else:
+        api_data = []
     return {'24- and 48- Hour Filings': pd.DataFrame(api_data)}
 
 
-def format_dates_output(data: Dict[str, pd.DataFrame]) -> Dict[str, str]:
+def format_dates_output(
+        data: Dict[str, pd.DataFrame],
+        COLUMNS=DATA_COLUMNS
+        ) -> Dict[str, str]:
     """
     Processes output of `get_data_by_date` for web presentation.
 
     Making this its own app makes testing easier!
     """
-    return {k: v[DATA_COLUMNS].to_html() for k, v in data.items()}
+    if COLUMNS:
+        return {k: encode_df_urls(v[COLUMNS]).to_html(escape=False) for k, v in data.items()}
+    else:
+        return {k: encode_df_urls(v).to_html(escape=False) for k, v in data.items()}
 
 
 def download_dates_output(data: Dict[str, pd.DataFrame]):
@@ -231,3 +248,37 @@ def download_dates_output(data: Dict[str, pd.DataFrame]):
             "Content-disposition":
             "attachment; filename={}".format("date_data.csv")
         })
+
+def parse_24_48(url):
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'}
+    r = requests.get(url, headers=headers)
+    if r.status_code != 200:
+        return
+    else:
+        soup = BeautifulSoup(r.content)
+        if "48 HOUR NOTICE" in soup.text:
+            output = {
+                i: soup_to_dict_helper(j, soup.text)
+                for i, j in [
+                    ("filing_id", "\nFILING"),
+                    ("committee_name", "\n1\. "),
+                    ("committee_id", "4\. FEC Committee ID \#\: "),
+                    ("candidate_id", "Candidate ID \#\: "),
+                    ("candidate_name", "Candidate Name\: "),
+                    ("office_sought", "3\. Office Sought\: "),
+                ]
+            }
+            output['transactions_link'] = os.path.join(url, "f65")
+            output['form_type'] = "48"
+        else:
+            output = {
+                i: soup_to_dict_helper(j, soup.text)
+                for i, j in [
+                    ("filing_id", "24 HOUR NOTICE FILING "),
+                    ("committee_id", "\nFEC Committee ID \#\: "),
+                ]
+            }
+            output['committee_name'] = soup.title.text.strip().replace("Form 24 for ", "")
+            output['expenditures_link'] = os.path.join(url, "se")
+            output['form_type'] = "24"
+    return output

@@ -8,6 +8,7 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine.base import Engine
+import re
 
 DATA_COLUMNS = [
     'fec_committee_name',
@@ -24,6 +25,15 @@ DATA_COLUMNS = [
     'payee',
     'support_or_oppose',
     'transaction_id'
+]
+
+COLUMNS_TO_CONVERT = [
+    'expenditures_link',
+    'transactions_link',
+    'fec_uri',
+    'original_uri',
+    ('fec_committee_id', "committee/{}"),
+    ('committee_id', "committee/{}")
 ]
 
 DT_FORMAT = "%Y-%m-%d"
@@ -94,3 +104,37 @@ def send_email(subject, body):
     except Exception as e:
         print("Error while sending email:", e)
         return False
+
+
+def encode_df_url(value: str, url: str=None) -> str:
+    if url:
+        url = url.format(*[value] * url.count("{}"))
+    else:
+        url = value
+    if value not in [None, 'None']:
+        return f"<a href='{url}'>{value}</a>"
+    else:
+        return value
+
+
+def encode_df_urls(df, column_info=COLUMNS_TO_CONVERT):
+    for column in column_info:
+        if isinstance(column, tuple):
+            column, url = column
+        else:
+            url = None
+        if column in df:
+            if url:
+                df[column] = df[column].map(lambda r: encode_df_url(r, url))
+            else:
+                df[column] = df[column].map(lambda r: encode_df_url(r))
+    return df
+
+
+
+def soup_to_dict_helper(regex: str, text: str) -> str:
+    t = re.search(f"({regex})(.+)", text)
+    try:
+        return t.group(2)
+    except AttributeError:
+        return None
