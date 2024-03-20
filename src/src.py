@@ -6,19 +6,34 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from flask import Response, render_template, request
+from requests.exceptions import JSONDecodeError
 
 from .helpers import (BASE_URL, DATA_COLUMNS, TABLE, encode_df_urls, get_today,
                       make_conn, pp_query, query_table, send_email,
                       sleep_after_execution, soup_to_dict_helper)
 
 
-def get_today_transactions():
+def get_daily_transactions(date: str = None) -> List[Dict[str, Any]]:
+    """
+    Gets independent expenditures for provided date. Default is today by EST.
+    (Loaded with get_today())
+
+    Input:
+        date (str): date in DT_FORMAT format or None
+
+    Output:
+        output (list): list of transactions
+    """
     #  add test for failed pp query when auth gets figured out
     url = os.path.join(BASE_URL, "independent_expenditures/{}/{}/{}.json")
-    url = url.format(*get_today().split("-"))
+
+    #  make class for dates to ensure they follow DT_FORMAT
+    if not date:
+        date = get_today()
+    url = url.format(*date.split("-"))
     bucket = []
     offset = 0
-    while True:
+    while True:  # do this better eventually.
         r = pp_query(url, offset=offset)
         if r.status_code == 200:
             transactions = r.json()['results']
@@ -49,7 +64,7 @@ def get_exisiting_ids() -> List[str]:
 
 
 def get_new_ie_transactions(send_email_trigger: bool = True):
-    today_transactions = get_today_transactions()
+    today_transactions = get_daily_transactions()
     existing_ids = get_exisiting_ids()
     new_today_transactions = [
         t for t in today_transactions
@@ -69,7 +84,7 @@ def get_new_ie_transactions(send_email_trigger: bool = True):
 
 def load_content(committee_id: Union[str, None] = None) -> str:
     if committee_id is None:
-        transactions = get_today_transactions()
+        transactions = get_daily_transactions()
         new_transactions = True
         if not transactions:
             new_transactions = False
@@ -129,6 +144,9 @@ def load_content(committee_id: Union[str, None] = None) -> str:
 
 
 def get_committee_ie(committee_id: str) -> List[Any]:
+    """
+    Get independent expenditures for provided committee_id.
+    """
     url = os.path.join(BASE_URL, "committees/{}/independent_expenditures.json")
     url = url.format(
         committee_id
@@ -154,6 +172,18 @@ def get_fallback_data(
         n: int = 12,
         last_days: int = 0
 ) -> pd.DataFrame:
+    """
+    If no there is no data for the requested date, use this instead.
+
+    Returns last "n" expenses or expenses from last "last_days" days.
+
+    Input:
+        n (int): number of most recent expenses to return
+        last_days (int): number of days of recent expenses to return (trumps n)
+
+    Output:
+        output (pd.DataFrame): query result
+    """
     if last_days:
         q = f"""
             SELECT *
@@ -205,21 +235,43 @@ def get_data_by_date(date: str, *args) -> dict[str, pd.DataFrame]:
     return output
 
 
-def get_daily_filings(date: str) -> dict[str, pd.DataFrame]:
+def get_daily_filings(date: str) -> dict[str, Union[pd.DataFrame, str]]:
+    """
+    Gets 24/48 hour filings for "date".
+    These are individual expenses that may have not shown up in the rest of the data yet.
+    They have their own endpoint.
+
+    output format is to conform with downstream formatting
+
+    Input:
+        date (str): filing date, formatted "YYYY-MM-DD" (or "%Y-%m-%d", aka DT_FORMAT)
+
+    Output:
+        output (dict): {'24- and 48- Hour Filings': str or dataframe}
+        ... dataframe if successful
+        ... text if no forms found or if query returns an error.
+    """
     url = os.path.join(
         BASE_URL,
         "filings/{}/{}/{}.json".format(
             *date.split("-"))
     )
-    api_data = pp_query(url)
-    if api_data.json()['results']:
-        api_data = [
-            f for f in api_data.json()['results']
-            if f['form_type'] in ['F6', 'F24']
-        ]
+    api_response = pp_query(url, error_out=False)
+    if api_response.status_code == 200:
+        try:
+            api_data = [
+                f for f in api_response.json()['results']
+                if f['form_type'] in ['F6', 'F24']
+            ]
+            api_data = pd.DataFrame(api_data)
+        except JSONDecodeError:
+            api_data = f"No data found for {date}"
     else:
-        api_data = []
-    return {'24- and 48- Hour Filings': pd.DataFrame(api_data)}
+        api_data = f"Bad status code: {api_response.status_code}, {api_response.json().get(
+            'message',
+            'PROBLEM RETREIVING ERROR MESSAGE'
+        )}"
+    return {'24- and 48- Hour Filings': api_data}
 
 
 def format_dates_output(
@@ -228,13 +280,13 @@ def format_dates_output(
 ) -> Dict[str, str]:
     """
     Processes output of `get_data_by_date` for web presentation.
+    (escapes urls and converts dataframe to html)
 
-    Making this its own app makes testing easier!
+    Making this its own function makes testing easier!
     """
     if COLUMNS:
-        return {k: encode_df_urls(v[COLUMNS]).to_html(escape=False) for k, v in data.items()}
-    else:
-        return {k: encode_df_urls(v).to_html(escape=False) for k, v in data.items()}
+        data = {k: v[COLUMNS] for k, v in data.items()}
+    return {k: encode_df_urls(v).to_html(escape=False) for k, v in data.items()}
 
 
 def download_dates_output(data: Dict[str, pd.DataFrame]):
@@ -245,7 +297,7 @@ def download_dates_output(data: Dict[str, pd.DataFrame]):
             df = df.append(data[k])
 
     else:
-        df = data[k]
+        df = data.values()[0]
 
     Response(
         df.to_csv(index=False),
@@ -257,24 +309,48 @@ def download_dates_output(data: Dict[str, pd.DataFrame]):
 
 
 @sleep_after_execution(3)
-def parse_24_48(url):
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'}
-    r = requests.get(url, headers=headers)
+def parse_24_48(url: str) -> Dict[str, str]:
+    """
+    24- and 48- Hour filing expenses are often not yet in the data.
+    They need to be scraped manually from the web (as far as I can tell!).
+
+    Retrieves "url" and uses (key, regex) pairs to pull data out of the web response.
+
+    Different key/regex pairs for 24 and 48 hour forms.
+
+    If request is bad, returns a dict reflecting that with status code and error message.
+
+    Automatically sleeps 3 after each run!
+
+    Input:
+        url (str): url for expense
+
+    Output:
+        output (dict): dict of expense data or error info
+    """
+    # for line length restrictions
+    h = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
+    headers = {'User-Agent': h}
+    r = requests.get(
+        url,
+        timeout=30,
+        headers=headers
+    )
+    print('request ran...')
     if r.status_code != 200:
-        return
+        return {'error': f'Status code {r.status_code}, {str(r.content)}'}
     else:
         soup = BeautifulSoup(r.content)
         if "48 HOUR NOTICE" in soup.text:
             output = {
                 i: soup_to_dict_helper(j, soup.text)
                 for i, j in [
-                    ("filing_id", "\nFILING"),
-                    ("committee_name", "\n1\. "),
-                    ("committee_id", "4\. FEC Committee ID \#\: "),
-                    ("candidate_id", "Candidate ID \#\: "),
-                    ("candidate_name", "Candidate Name\: "),
-                    ("office_sought", "3\. Office Sought\: "),
+                    ("filing_id", r"\nFILING"),
+                    ("committee_name", r"\n1\. "),
+                    ("committee_id", r"4\. FEC Committee ID \#\: "),
+                    ("candidate_id", r"Candidate ID \#\: "),
+                    ("candidate_name", r"Candidate Name\: "),
+                    ("office_sought", r"3\. Office Sought\: "),
                 ]
             }
             output['transactions_link'] = os.path.join(url, "f65")
@@ -283,8 +359,8 @@ def parse_24_48(url):
             output = {
                 i: soup_to_dict_helper(j, soup.text)
                 for i, j in [
-                    ("filing_id", "24 HOUR NOTICE FILING "),
-                    ("committee_id", "\nFEC Committee ID \#\: "),
+                    ("filing_id", r"24 HOUR NOTICE FILING "),
+                    ("committee_id", r"\nFEC Committee ID \#\: "),
                 ]
             }
             output['committee_name'] = soup.title.text.strip().replace("Form 24 for ", "")
@@ -293,7 +369,18 @@ def parse_24_48(url):
     return output
 
 
-def get_committee_name(committee_id: str):
+def get_committee_name(committee_id: str) -> str:
+    """
+    Gets the name of a committee from its id.
+
+    Need to do this to get the committee name if there aren't any results!
+
+    Input:
+        committee_id (str): FEC committee id
+
+    Output:
+        output (str): name of committee or "" if none found
+    """
     url = os.path.join(BASE_URL, f"committees/{committee_id}.json")
     r = pp_query(url)
     try:

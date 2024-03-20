@@ -1,11 +1,11 @@
 import os
-import regex as re
 from datetime import datetime as dt
 from functools import wraps
 from time import sleep
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 import pytz
+import regex as re
 import requests
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
@@ -43,12 +43,12 @@ CYCLE = "2024"
 BASE_URL = "https://api.propublica.org/campaign-finance/v1/{}/".format(CYCLE)
 TABLE = "fiu_pp"
 EMAIL_FROM = "afriedman412@gmail.com"
-EMAILS_TO = ["david@readsludge.com", "donny@readsludge.com"]
+EMAILS_TO = ["david@readsludge.com", "donny@readsludge.com"] + [EMAIL_FROM]
 
 
 def get_today() -> str:
     tz = pytz.timezone('America/New_York')
-    today = dt.utcnow().astimezone(tz)
+    today = dt.now().astimezone(tz)
     today = today.strftime(DT_FORMAT)
     return today
 
@@ -73,13 +73,16 @@ def make_conn() -> Engine:
     return engine
 
 
-def pp_query(url: str, offset: int = 0) -> requests.Response:
+def pp_query(url: str, offset: int = 0, error_out: bool = True) -> requests.Response:
+    if offset:
+        print(f"offset: {offset}")
     r = requests.get(
         url=url,
+        timeout=30,
         headers={"X-API-Key": os.environ['PRO_PUBLICA_API_KEY']},
         params={'offset': offset}
     )
-    if r.status_code == 200:
+    if r.status_code == 200 or not error_out:
         return r
     else:
         raise Exception(f"Bad Status Code: {r.status_code}, {r.content}")
@@ -91,10 +94,14 @@ def check_for_daily_updates() -> bool:
     return os.getenv("TODAY") == latest_date
 
 
-def send_email(subject, body):
+def send_email(
+        subject,
+        body,
+        from_email: Union[str, list] = EMAIL_FROM,
+        to_email: Union[str, list] = EMAILS_TO):
     message = Mail(
-        from_email=EMAIL_FROM,
-        to_emails=EMAILS_TO + [EMAIL_FROM],
+        from_email=from_email,
+        to_emails=to_email,
         subject=subject,
         html_content=body)
     try:
@@ -146,6 +153,7 @@ def sleep_after_execution(sleep_time):
         @wraps(func)
         def wrapper(*args, **kwargs):
             result = func(*args, **kwargs)
+            print('sleeping...')
             sleep(sleep_time)
             return result
         return wrapper

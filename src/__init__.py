@@ -22,6 +22,7 @@ def generate_app() -> Flask:
 
 app = generate_app()
 
+form_urls = []
 
 app.route("/update")(get_new_ie_transactions)
 
@@ -65,11 +66,34 @@ def basically() -> str:
 
 @app.route("/dates", methods=['GET', 'POST'])
 def date_endpoint() -> str:
+    """
+    Returns blank "dates.html" page if method is GET.
+
+    If method is POST:
+    - use 'datepicker' from POST data to get the date to use.
+    - loads 24/48 Hour Filings if 'forms' is in request.values
+    (this is used to find 24/48 hour filings that haven't shown up in the rest of the data yet)
+    - otherwise loads forms for selected dates/date categories
+    (use of 'date' columns is inconsistent, this allows some parsing)
+
+    If 'download' is in request.values, download current data as .csv.
+
+    Jumping through some hoops to nail down query errors and response codes and make formats align for downstream processing.
+    """
+    message = None
     if request.method == 'POST':
         date = request.values.get('datepicker')
         if 'forms' in request.values:
+            #  this is unruly!
             data = get_daily_filings(date)
-            data = format_dates_output(data, None)
+            if isinstance(data.get("24- and 48- Hour Filings"), str):
+                message = data.get("24- and 48- Hour Filings")
+            else:
+                global form_urls
+                form_urls = data[
+                    "24- and 48- Hour Filings"
+                    ]['fec_uri'].to_list()  # save form urls for later
+                data = format_dates_output(data, None)
         else:
             checked = [k.replace("-", "_") for k in [
                 'date',
@@ -89,7 +113,8 @@ def date_endpoint() -> str:
             return render_template(
                 'dates.html',
                 data=data,
-                date=date
+                date=date,
+                message=message
             )
     else:
         return render_template(
@@ -98,17 +123,30 @@ def date_endpoint() -> str:
         )
 
 
+@app.route('/form-url-check')
+def show_form_urls() -> str:
+    global form_urls
+    try:
+        return jsonify(form_urls.to_json())
+    except AttributeError:
+        return jsonify(form_urls)
+
+
 @app.route('/forms/<date>')
 def expand_forms(date) -> str:
-    data = get_daily_filings(date)
-    results = [parse_24_48(url) for url in data['24- and 48- Hour Filings']['fec_uri']]
-    split_results = {
-        f'{k} HOUR NOTICE:': pd.DataFrame(
-            [r for r in results if r['form_type'] == k]
-        )
-        for k in ['24', '48']
-    }
-    split_results = format_dates_output(split_results, COLUMNS=None)
+    split_results = {}
+    global form_urls
+    form_scrapes = []
+    for url in form_urls:
+        scrape_data = parse_24_48(url)
+        form_scrapes.append(scrape_data)
+        split_results = {
+            f'{k} HOUR NOTICE:': pd.DataFrame(
+                [r for r in form_scrapes if r['form_type'] == k]
+            )
+            for k in ['24', '48']
+        }
+        split_results = format_dates_output(split_results, COLUMNS=None)
     return render_template(
         'dates.html',
         data=split_results,
@@ -127,3 +165,9 @@ def get_routes() -> str:
             "url": str(rule)
         })
     return render_template('routes.html', routes=routes)
+
+
+@app.route('/progress/<n>')
+def progress_bar_test(n: int) -> str:
+
+    return

@@ -6,8 +6,9 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError
 
 from app import app
-from src.helpers import BASE_URL, make_conn, pp_query
-from src.src import get_committee_ie, get_data_by_date, get_today_transactions
+from src.helpers import BASE_URL, EMAIL_FROM, make_conn, pp_query
+from src.src import (get_committee_ie, get_daily_transactions,
+                     get_data_by_date, send_email)
 
 
 class TestFolio(TestCase):
@@ -19,10 +20,9 @@ class TestFolio(TestCase):
         self.assert200(response)
 
     def test_endpoints(self):
-        home_response = self.client.get("/")
-        self.assert200(home_response)
-        committee_response = self.client.get("/committee/C00864215")
-        self.assert200(committee_response)
+        for endpoint in ["/", "/committee/C00864215", "/dates"]:
+            endpoint_response = self.client.get(endpoint)
+            self.assert200(endpoint_response)
 
 
 def test_create_engine_success():
@@ -41,6 +41,11 @@ def test_create_engine_failure():
             conn.execute(text("show tables"))
 
 
+def test_email():
+    email_result = send_email("testing fiu email", "this is a test message for the fiu app", to_email=EMAIL_FROM)
+    assert email_result
+
+
 def test_pp_query():
     url = os.path.join(BASE_URL, "independent_expenditures.json")
     r = pp_query(url)
@@ -55,7 +60,7 @@ def test_committee_endpoint():
 
 
 def test_today_transactions():
-    bucket = get_today_transactions()
+    bucket = get_daily_transactions()
     assert isinstance(bucket, list)
 
 

@@ -38,57 +38,62 @@
         <div class="the-body">
             <img width="300px"
                 src="{{ url_for('static', filename='images/Thundercracker1_1223717253.gif') }}">
-            {% if data %}
+            {% if message %}
+            <h2>{{ message }}</h2>
+            {% elif data %}
             <h1>>>> {{ date }}</h1>
             <a href="#new_search">Click here for a new search...</a>
-            {% for k,df_html in data.items() %}
+            {% for k, df_html in data.items() %}
             <table class="data">
                 <h2>{{ k.upper() }}</h2>
                 {% if "24- and 48- Hour Filings" in data %}
-                <p><a href="/forms/{{ date }}">(Click here to expand 24/48 Hour form data...)</a></p>
+                <p><a href="/forms/{{ date }}">(Click here to expand 24/48 Hour
+                        form data...)</a></p>
                 {% endif %}
                 <tbody>
                     {{ df_html|safe }}
                 </tbody>
             </table>
             <br>
-            <p><a name="new_search"><hr></a></p>
             {% endfor %}
+            <p><a name="new_search"><hr></a></p>
             {% endif %}
             <form action="/dates" method="post">
                 <p><label for="datepicker">Select a Date:</label>
                 </p>
-                <input type="date" id="datepicker" name="datepicker" value="{{ date }}"><br>
-                
+                <input type="date" id="datepicker" name="datepicker"
+                    value="{{ date }}"><br>
+
                 <p>
-                <input type="radio" id="datecheker" name="forms" checked>
-                <label for="datechecker">Check existing data by date type...</label>
+                    <input type="radio" id="forms" name="forms" checked>
+                    <label for="forms">Get 24- and 48- Hour Forms</label>
                 </p>
 
-                <input type="checkbox" id="api" name="api" checked>
+                <p>or...</p>
+
+                <p>
+                    <input type="radio" id="datecheker" name="forms">
+                    <label for="datechecker">Check existing data by date
+                        type...</label>
+                </p>
+
+                <input type="checkbox" id="api" name="api">
                 <label for="api">API</label><br>
 
-                <input type="checkbox" id="date" name="date" checked>
+                <input type="checkbox" id="date" name="date">
                 <label for="date">Date</label><br>
 
                 <input type="checkbox" id="date-received"
-                    name="date-received" checked>
+                    name="date-received">
                 <label for="date-received">Date Received</label><br>
 
                 <input type="checkbox" id="dissemination-date"
-                    name="dissemination-date" checked>
+                    name="dissemination-date">
                 <label for="dissemination-date">Dissemination
                     Date</label>
+                <p><input type="submit" value="Submit"></p>
 
-                    <p>or...</p>
-
-                <p>
-                    <input type="radio" id="forms" name="forms">
-                    <label for="forms">Get 24- and 48- Hour Forms</label>
-                </p>
-                <input type="submit" value="Submit">
             </form>
-            
 
         </div>
         <p class="attribution">

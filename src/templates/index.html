@@ -21,16 +21,16 @@
                 <a href="/dates">Click here to search API, existing data,
                     and 24/48-Hour forms by date.</a>
             </h3>
-            <h3><a href="/committee">Click here to search by committee ID.</a></h3>
-            <h2>
-                {% if new_transactions %}
-                <p style="color: red;">New transactions for {{ today }}!!!</p>
-                {% else %}
-                <p style="color: brown;">No new transactions today ({{ today
-                    }})</p>
-                {% endif %}
-            </h2>
-
+            <h3><a href="/committee">Click here to search by committee
+                    ID.</a></h3>
+            {% if message %}
+            <h2>{{ message }}></h2>
+            {% elif not new_transactions %}
+            <h2><p style="color: brown;">No new transactions today ({{ today
+                    }})</p></h2>
+            {% else %}
+            <h2><p style="color: red;">New transactions for {{ today
+                    }}!!!</p></h2>
             <table class="data">
                 <tbody>
                     {{ df_html|safe }}
@@ -41,6 +41,7 @@
                     <button type="submit">Download CSV</button>
                 </form>
             </h2>
+            {% endif %}
         </div>
         <p class="attribution">
             <em>*** by <a href="https://dnpdata.com">Andy

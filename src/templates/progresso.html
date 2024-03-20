@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Scraping Progress</title>
+        <style>
+        /* CSS for the progress bar */
+        #progress {
+            width: 100%;
+            background-color: #ddd;
+        }
+
+        #bar {
+            width: 0%;
+            height: 30px;
+            background-color: #4caf50;
+            text-align: center;
+            line-height: 30px;
+            color: white;
+        }
+    </style>
+    </head>
+    <body>
+        <div id="progress">
+            <div id="bar">0%</div>
+        </div>
+
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <script>
+        // JavaScript for updating the progress bar
+        function updateProgress(progress) {
+            $('#bar').width(progress + "%").html(progress + "%");
+        }
+
+        // Function to start scraping
+        function startScraping() {
+            $.ajax({
+                url: '/scrape',
+                success: function(data) {
+                    updateProgress(data.progress);
+                    if (data.progress < 100) {
+                        // Continue scraping until progress reaches 100%
+                        startScraping();
+                    } else {
+                        // Scraping complete
+                        console.log("Scraping complete!");
+                    }
+                }
+            });
+        }
+
+        // Start scraping when the page loads
+        $(document).ready(function() {
+            startScraping();
+        });
+    </script>
+    </body>
+</html>
