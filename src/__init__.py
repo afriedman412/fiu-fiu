@@ -5,8 +5,8 @@ from flask import Flask, jsonify, redirect, render_template, request, url_for
 
 from .helpers import BASE_URL, CYCLE, get_today
 from .src import (download_dates_output, format_dates_output,
-                  get_daily_filings, get_data_by_date, get_new_ie_transactions,
-                  load_content, parse_24_48)
+                  get_daily_24_48_forms, get_data_by_date,
+                  get_new_ie_transactions, load_transactions, parse_24_48)
 
 
 def generate_app() -> Flask:
@@ -41,12 +41,12 @@ def check_date() -> str:
 
 @app.route('/')
 def home() -> str:
-    return load_content()
+    return load_transactions()
 
 
 @app.route('/committee')
 def reroute_committee():
-    """I added this after I baked the code to load comittee info into load_content()"""
+    """I added this after I baked the code to load comittee info into load_transactions()"""
     committee_id = request.args.get("committee_id")
     if committee_id:
         return redirect(f"/committee/{committee_id}")
@@ -56,7 +56,7 @@ def reroute_committee():
 
 @app.route('/committee/<committee_id>', methods=['GET', 'POST'])
 def committee_endpoint(committee_id: str) -> str:
-    return load_content(committee_id)
+    return load_transactions(committee_id)
 
 
 @app.route('/basic', methods=['GET', 'POST'])
@@ -83,16 +83,17 @@ def date_endpoint() -> str:
     message = None
     if request.method == 'POST':
         date = request.values.get('datepicker')
-        if 'forms' in request.values:
+        if request.values['forms'] == 'on':
             #  this is unruly!
-            data = get_daily_filings(date)
+            data = get_daily_24_48_forms(date)
             if isinstance(data.get("24- and 48- Hour Filings"), str):
                 message = data.get("24- and 48- Hour Filings")
             else:
                 global form_urls
                 form_urls = data[
                     "24- and 48- Hour Filings"
-                    ]['fec_uri'].to_list()  # save form urls for later
+                ]['fec_uri'].to_list()  # save form urls for later
+                print("Form urls ...", len(form_urls))
                 data = format_dates_output(data, None)
         else:
             checked = [k.replace("-", "_") for k in [

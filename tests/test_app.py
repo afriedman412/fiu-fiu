@@ -8,7 +8,8 @@ from sqlalchemy.exc import OperationalError
 from app import app
 from src.helpers import BASE_URL, EMAIL_FROM, make_conn, pp_query
 from src.src import (get_committee_ie, get_daily_transactions,
-                     get_data_by_date, send_email)
+                     get_data_by_date, get_landing_page_transactions,
+                     send_email)
 
 
 class TestFolio(TestCase):
@@ -20,9 +21,13 @@ class TestFolio(TestCase):
         self.assert200(response)
 
     def test_endpoints(self):
+        error_message = "Endpoint {}: Expected status code 200, received {} ({})"
         for endpoint in ["/", "/committee/C00864215", "/dates"]:
             endpoint_response = self.client.get(endpoint)
-            self.assert200(endpoint_response)
+            self.assert200(
+                endpoint_response,
+                error_message.format(endpoint, endpoint_response.status_code, endpoint_response.data)
+            )
 
 
 def test_create_engine_success():
@@ -58,10 +63,18 @@ def test_committee_endpoint():
     assert len(r) > 0
     assert r[0]['fec_committee_name'] == 'United Democracy Project (Udp)'
 
+    r = get_committee_ie("xxx")
+    assert r == 'bad committee id'
+
 
 def test_today_transactions():
     bucket = get_daily_transactions()
     assert isinstance(bucket, list)
+
+
+def test_landing_page_transactions():
+    t = get_landing_page_transactions("2024-03-12")
+    assert t.shape == (3, 23)
 
 
 def test_data_by_date():

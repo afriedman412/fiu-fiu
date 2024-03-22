@@ -42,6 +42,7 @@ DT_FORMAT = "%Y-%m-%d"
 CYCLE = "2024"
 BASE_URL = "https://api.propublica.org/campaign-finance/v1/{}/".format(CYCLE)
 TABLE = "fiu_pp"
+DATE_COL = 'dissemination_date'
 EMAIL_FROM = "afriedman412@gmail.com"
 EMAILS_TO = ["david@readsludge.com", "donny@readsludge.com"] + [EMAIL_FROM]
 

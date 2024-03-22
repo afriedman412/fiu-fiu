@@ -8,8 +8,8 @@ from bs4 import BeautifulSoup
 from flask import Response, render_template, request
 from requests.exceptions import JSONDecodeError
 
-from .helpers import (BASE_URL, DATA_COLUMNS, TABLE, encode_df_urls, get_today,
-                      make_conn, pp_query, query_table, send_email,
+from .helpers import (BASE_URL, DATA_COLUMNS, DATE_COL, TABLE, encode_df_urls,
+                      get_today, make_conn, pp_query, query_table, send_email,
                       sleep_after_execution, soup_to_dict_helper)
 
 
@@ -82,21 +82,16 @@ def get_new_ie_transactions(send_email_trigger: bool = True):
     return new_today_transactions
 
 
-def load_content(committee_id: Union[str, None] = None) -> str:
+def load_transactions(committee_id: Union[str, None] = None) -> str:
     if committee_id is None:
-        transactions = get_daily_transactions()
-        new_transactions = True
-        if not transactions:
-            new_transactions = False
-            transactions = get_fallback_data()
         today = os.getenv("TODAY", "error")
-        df = pd.DataFrame(transactions)
+        df = get_landing_page_transactions()
         df = df[DATA_COLUMNS].sort_values(
-            ['date', 'date_received'],
+            [DATE_COL, 'date_received'],
             ascending=False
         )
         df = encode_df_urls(df)
-
+        new_transactions = df[DATE_COL][0] == today
         filename = f"ie_{today}.csv"
         if request.method != "POST":
             df_html = df.to_html(escape=False) if len(df) else None
@@ -112,6 +107,9 @@ def load_content(committee_id: Union[str, None] = None) -> str:
         if not committee_ie:
             committee_name = get_committee_name(committee_id)
             df = "No Results Found"
+        elif committee_ie == "bad committee id":
+            committee_name = "None Found"
+            df = "No committee found"
         else:
             committee_name = committee_ie[0].get('fec_committee_name')
             df = pd.DataFrame(committee_ie)
@@ -143,7 +141,7 @@ def load_content(committee_id: Union[str, None] = None) -> str:
         })
 
 
-def get_committee_ie(committee_id: str) -> List[Any]:
+def get_committee_ie(committee_id: str) -> Union[List[Any], str]:
     """
     Get independent expenditures for provided committee_id.
     """
@@ -156,6 +154,9 @@ def get_committee_ie(committee_id: str) -> List[Any]:
     while True:
         r = pp_query(url, offset)
         if r.status_code == 200:
+            # this is the behavior if there is no committee associated w this ID
+            if r.json().get('status') == '500':
+                return "bad committee id"
             if r.json().get('results'):
                 print(len(r.json().get('results')))
                 results += r.json().get('results')
@@ -168,39 +169,58 @@ def get_committee_ie(committee_id: str) -> List[Any]:
     return results
 
 
-def get_fallback_data(
+def get_landing_page_transactions(
+        date: str = None,
         n: int = 12,
         last_days: int = 0
 ) -> pd.DataFrame:
     """
-    If no there is no data for the requested date, use this instead.
+    Returns transactions for "date" if they exist.
 
-    Returns last "n" expenses or expenses from last "last_days" days.
+    Otherwise, returns most "n" expenses or expenses from last "last_days" days (if provided).
 
     Input:
+        date (str): date in YYYY-MM-DD format
         n (int): number of most recent expenses to return
         last_days (int): number of days of recent expenses to return (trumps n)
 
     Output:
         output (pd.DataFrame): query result
     """
+    if not date:
+        date = get_today()
+    q = f"""
+        SELECT *
+        FROM {TABLE}
+        WHERE {DATE_COL} = '{date}'
+        """
+    suffix_q = f"""
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM {TABLE}
+            WHERE {DATE_COL} = '{date}'
+        )
+        ORDER BY {DATE_COL} DESC;
+        """
     if last_days:
-        q = f"""
+        other_dates = f"""
+        SELECT *
+        FROM {TABLE}
+        WHERE {DATE_COL} >= DATE_SUB(CURDATE(), INTERVAL {n} DAY) AND {DATE_COL} <> '{date}'
+        ORDER BY {DATE_COL} DESC
+        """
+
+    else:
+        other_dates = f"""
             SELECT *
             FROM {TABLE}
-            WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL {last_days} DAY)
-            ORDER BY date DESC
-            ;"""
-        output = query_table(q)
-        if output:
-            return output
-    else:
-        q = f"""
-            SELECT * FROM {TABLE}
-            ORDER BY date DESC
+            WHERE {DATE_COL} <> '{date}'
+            ORDER BY {DATE_COL} DESC
             LIMIT {n}
             """
-        output = query_table(q)
+    q = "".join([q, f"UNION ALL\nSELECT * FROM ({other_dates}) AS other_dates", suffix_q])
+    output = query_table(q)
+    output = pd.DataFrame(output).drop_duplicates()
     return output
 
 
@@ -235,7 +255,7 @@ def get_data_by_date(date: str, *args) -> dict[str, pd.DataFrame]:
     return output
 
 
-def get_daily_filings(date: str) -> dict[str, Union[pd.DataFrame, str]]:
+def get_daily_24_48_forms(date: str) -> dict[str, Union[pd.DataFrame, str]]:
     """
     Gets 24/48 hour filings for "date".
     These are individual expenses that may have not shown up in the rest of the data yet.
@@ -267,10 +287,9 @@ def get_daily_filings(date: str) -> dict[str, Union[pd.DataFrame, str]]:
         except JSONDecodeError:
             api_data = f"No data found for {date}"
     else:
-        api_data = f"Bad status code: {api_response.status_code}, {api_response.json().get(
-            'message',
-            'PROBLEM RETREIVING ERROR MESSAGE'
-        )}"
+        code = api_response.status_code
+        message = api_response.json().get('message', 'PROBLEM RETREIVING ERROR MESSAGE')
+        api_data = f"Bad status code: {code}, {message}"
     return {'24- and 48- Hour Filings': api_data}
 
 
@@ -290,6 +309,9 @@ def format_dates_output(
 
 
 def download_dates_output(data: Dict[str, pd.DataFrame]):
+    """
+    What it says on the tin.
+    """
     if len(data) > 1:
         df = pd.DataFrame()
         for k in data:
@@ -340,7 +362,7 @@ def parse_24_48(url: str) -> Dict[str, str]:
     if r.status_code != 200:
         return {'error': f'Status code {r.status_code}, {str(r.content)}'}
     else:
-        soup = BeautifulSoup(r.content)
+        soup = BeautifulSoup(r.content, features="html.parser")
         if "48 HOUR NOTICE" in soup.text:
             output = {
                 i: soup_to_dict_helper(j, soup.text)

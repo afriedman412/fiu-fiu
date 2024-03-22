@@ -4,7 +4,7 @@
             {% for route in routes %}
             <div class="box">
                 <p> <strong>Endpoint:</strong> {{ route.endpoint }}</p>
-                <p><strong>URL:</strong> {{ route.url }}</p>
+                <p><strong>URL:</strong> <a href="{{ route.url }}">{{ route.url }}</a></p>
                 <p> <strong>Methods:</strong> {{ route.methods | join(', ')
                     }}</p>
                 <hr>
