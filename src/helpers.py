@@ -12,6 +12,8 @@ from sendgrid.helpers.mail import Mail
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine.base import Engine
 
+from .logger import logger
+
 DATA_COLUMNS = [
     'fec_committee_name',
     'fec_committee_id',
@@ -73,19 +75,29 @@ def make_conn() -> Engine:
     return engine
 
 
-def pp_query(url: str, offset: int = 0, error_out: bool = True) -> requests.Response:
-    if offset:
-        print(f"offset: {offset}")
-    r = requests.get(
-        url=url,
-        timeout=30,
-        headers={"X-API-Key": os.environ['PRO_PUBLICA_API_KEY']},
-        params={'offset': offset}
-    )
-    if r.status_code == 200 or not error_out:
-        return r
-    else:
-        raise Exception(f"Bad Status Code: {r.status_code}, {r.content}")
+def pp_query(
+        url: str, offset: int = 0, retries=5, error_out: bool = True
+        ) -> requests.Response:
+    logger.debug(f"url: {url}\noffset: {offset}")
+    counter = 0
+    while counter < retries:
+        r = requests.get(
+            url=url,
+            timeout=30,
+            headers={"X-API-Key": os.environ['PRO_PUBLICA_API_KEY']},
+            params={'offset': offset}
+        )
+        if r.status_code == 200 or not error_out:
+            if '502 Bad Gateway' in r.content.decode():
+                logger.debug(f"bad gateway ... retry {counter}/{retries}")
+                counter += 1
+                sleep(3)
+                continue
+            else:
+                return r
+        else:
+            raise Exception(f"Bad Status Code: {r.status_code}, {r.content.decode()}")
+    raise Exception(f"Bad Gateway, retries exceeded ({retries}).")
 
 
 def check_for_daily_updates() -> bool:
@@ -108,10 +120,10 @@ def send_email(
         sg = SendGridAPIClient(os.environ.get('SENDGRID_API_KEY'))
         response = sg.send(message)
         assert response.status_code == 202, f"Bad status code: {response.status_code}"
-        print("Email sent successfully!")
+        logger.debug("Email sent successfully!")
         return True
     except Exception as e:
-        print("Error while sending email:", e)
+        logger.debug(f"Error while sending email: {e}")
         return False
 
 
@@ -153,7 +165,6 @@ def sleep_after_execution(sleep_time):
         @wraps(func)
         def wrapper(*args, **kwargs):
             result = func(*args, **kwargs)
-            print('sleeping...')
             sleep(sleep_time)
             return result
         return wrapper

@@ -3,10 +3,12 @@ import os
 import pandas as pd
 from flask import Flask, jsonify, redirect, render_template, request, url_for
 
-from .helpers import BASE_URL, CYCLE, get_today
+from .helpers import CYCLE, get_today
+from .errors import error_routes
 from .src import (download_dates_output, format_dates_output,
                   get_daily_filings, get_data_by_date, get_new_ie_transactions,
                   load_content, parse_24_48)
+from .logger import logger
 
 
 def generate_app() -> Flask:
@@ -21,6 +23,7 @@ def generate_app() -> Flask:
 
 
 app = generate_app()
+app.register_blueprint(error_routes)
 
 form_urls = []
 
@@ -93,6 +96,7 @@ def date_endpoint() -> str:
                 form_urls = data[
                     "24- and 48- Hour Filings"
                     ]['fec_uri'].to_list()  # save form urls for later
+                logger.debug(f"{len(form_urls)} form_urls for {date} saved")
                 data = format_dates_output(data, None)
         else:
             checked = [k.replace("-", "_") for k in [
@@ -126,6 +130,7 @@ def date_endpoint() -> str:
 @app.route('/form-url-check')
 def show_form_urls() -> str:
     global form_urls
+    logger.debug(f"N form_urls: {len(form_urls)}")
     try:
         return jsonify(form_urls.to_json())
     except AttributeError:
@@ -137,7 +142,8 @@ def expand_forms(date) -> str:
     split_results = {}
     global form_urls
     form_scrapes = []
-    for url in form_urls:
+    for n, url in enumerate(form_urls):
+        logger.debug(f"expanding url {n}/{len(form_urls)} ({url})")
         scrape_data = parse_24_48(url)
         form_scrapes.append(scrape_data)
         split_results = {
@@ -169,5 +175,12 @@ def get_routes() -> str:
 
 @app.route('/progress/<n>')
 def progress_bar_test(n: int) -> str:
-
     return
+
+
+@app.route("/loggy")
+def test_log():
+    logger.info("info log")
+    logger.debug("debug log")
+    logger.warning('warning log')
+    return 'check your logs!'

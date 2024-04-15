@@ -1,5 +1,6 @@
 import os
 from time import sleep
+import warnings
 from typing import Any, Dict, List, Union
 
 import pandas as pd
@@ -7,10 +8,22 @@ import requests
 from bs4 import BeautifulSoup
 from flask import Response, render_template, request
 from requests.exceptions import JSONDecodeError
+import re
+from dateparser import parse
 
-from .helpers import (BASE_URL, DATA_COLUMNS, TABLE, encode_df_urls, get_today,
+
+from .logger import logger
+from .helpers import (BASE_URL, DATA_COLUMNS, TABLE, DT_FORMAT,
+                      encode_df_urls, get_today,
                       make_conn, pp_query, query_table, send_email,
                       sleep_after_execution, soup_to_dict_helper)
+
+
+warnings.filterwarnings(
+    "ignore",
+    category=UserWarning,
+    message="No parser was explicitly specified, so I'm using the best available.*"
+    )
 
 
 def get_daily_transactions(date: str = None) -> List[Dict[str, Any]]:
@@ -27,9 +40,11 @@ def get_daily_transactions(date: str = None) -> List[Dict[str, Any]]:
     #  add test for failed pp query when auth gets figured out
     url = os.path.join(BASE_URL, "independent_expenditures/{}/{}/{}.json")
 
-    #  make class for dates to ensure they follow DT_FORMAT
     if not date:
         date = get_today()
+    if not re.search(DT_FORMAT, date):
+        # this should error out to the 500 endpoint
+        date = parse(date).strftime(DT_FORMAT)
     url = url.format(*date.split("-"))
     bucket = []
     offset = 0
@@ -164,7 +179,7 @@ def get_committee_ie(committee_id: str) -> List[Any]:
             else:
                 break
         else:
-            raise Exception(f"Bad Status Code: {r.status_code}, {r.content}")
+            raise Exception(f"Bad Status Code: {r.status_code}, {r.content.decode()}")
     return results
 
 
@@ -256,17 +271,27 @@ def get_daily_filings(date: str) -> dict[str, Union[pd.DataFrame, str]]:
         "filings/{}/{}/{}.json".format(
             *date.split("-"))
     )
-    api_response = pp_query(url, error_out=False)
+    api_response = pp_query(url)
     if api_response.status_code == 200:
         try:
-            api_data = [
-                f for f in api_response.json()['results']
-                if f['form_type'] in ['F6', 'F24']
-            ]
-            api_data = pd.DataFrame(api_data)
+            if len(api_response.json().get('results', [])) > 0:
+                api_data = [
+                    f for f in api_response.json()['results']
+                    if f['form_type'] in ['F6', 'F24']
+                ]
+                if len(api_data) > 0:
+                    api_data = pd.DataFrame(api_data)
+                else:
+                    api_data = f"No F6 or F24 forms found for {date}"
+                    logger.warning(api_data)
+            else:
+                api_data = f"No forms (of any type) found for {date}"
+                logger.warning(api_data)
         except JSONDecodeError:
-            api_data = f"No data found for {date}"
+            api_data = f"JSON Decode Error for api response for {date} ... {api_response.status_code}, {api_response.content}"
+            logger.warning(api_data)
     else:
+        logger.warning("Error while getting daily filings... {api_response.status_code}")
         api_data = f"Bad status code: {api_response.status_code}, {api_response.json().get(
             'message',
             'PROBLEM RETREIVING ERROR MESSAGE'
@@ -336,9 +361,8 @@ def parse_24_48(url: str) -> Dict[str, str]:
         timeout=30,
         headers=headers
     )
-    print('request ran...')
     if r.status_code != 200:
-        return {'error': f'Status code {r.status_code}, {str(r.content)}'}
+        return {'error': f'Status code {r.status_code}, {r.content.decode()}'}
     else:
         soup = BeautifulSoup(r.content)
         if "48 HOUR NOTICE" in soup.text:
