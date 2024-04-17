@@ -85,12 +85,15 @@ def date_endpoint() -> str:
     """
     message = None
     if request.method == 'POST':
+        logger.debug("method is POST")
         date = request.values.get('datepicker')
         if 'forms' in request.values:
+            logger.debug("'forms' in request ... getting daily filings")
             #  this is unruly!
             data = get_daily_filings(date)
             if isinstance(data.get("24- and 48- Hour Filings"), str):
                 message = data.get("24- and 48- Hour Filings")
+                logger.debug(f"message: {message}")
             else:
                 global form_urls
                 form_urls = data[
@@ -105,12 +108,16 @@ def date_endpoint() -> str:
                 'dissemination-date',
                 'api'
             ] if request.values.get(k) == 'on']
+            logger.debug(f"categories checked: {" / ".join(checked)}")
+            logger.debug(f"getting data by date {date}")
             data = get_data_by_date(
                 date,
                 *checked
             )
+            logger.debug("formatting dates")
             data = format_dates_output(data)
         if 'download' in request.values:
+            logger.debug("downloading data")
             download_dates_output(data)
             return
         else:

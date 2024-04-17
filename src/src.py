@@ -288,7 +288,9 @@ def get_daily_filings(date: str) -> dict[str, Union[pd.DataFrame, str]]:
                 api_data = f"No forms (of any type) found for {date}"
                 logger.warning(api_data)
         except JSONDecodeError:
-            api_data = f"JSON Decode Error for api response for {date} ... {api_response.status_code}, {api_response.content}"
+            api_data = f"JSON Decode Error for api response for {date} ... {api_response.status_code}, {
+                api_response.content.decode()
+                }"
             logger.warning(api_data)
     else:
         logger.warning("Error while getting daily filings... {api_response.status_code}")

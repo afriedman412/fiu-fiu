@@ -70,14 +70,3 @@ def test_data_by_date():
         'date', 'date_received', 'dissemination_date', 'api'
     ]
     assert [len(output[k]) for k in output] == [14, 29, 29, 20]
-
-# def test_existing_ids():
-#     url = os.path.join(BASE_URL, 'independent_expenditures/2024/03/03.json')
-#     r = pp_query(url)
-#     assert r.status_code == 200
-#     existing_ids = get_exisiting_ids()
-#     new_data = [
-#         r_ for r_ in r.json()['results']
-#         if r_['unique_id'] not in existing_ids
-#         ]
-#     assert new_data == []

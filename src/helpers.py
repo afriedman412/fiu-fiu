@@ -76,7 +76,11 @@ def make_conn() -> Engine:
 
 
 def pp_query(
-        url: str, offset: int = 0, retries=5, error_out: bool = True
+        url: str,
+        offset: int = 0,
+        retries=3,
+        sleep_time=1,
+        error_out: bool = True
         ) -> requests.Response:
     logger.debug(f"url: {url}\noffset: {offset}")
     counter = 0
@@ -87,17 +91,20 @@ def pp_query(
             headers={"X-API-Key": os.environ['PRO_PUBLICA_API_KEY']},
             params={'offset': offset}
         )
-        if r.status_code == 200 or not error_out:
+        if r.status_code == 200:
             if '502 Bad Gateway' in r.content.decode():
-                logger.debug(f"bad gateway ... retry {counter}/{retries}")
+                logger.debug(f"bad gateway ... {r.url} ... retry {counter}/{retries}")
+                logger.debug(r.content)
                 counter += 1
-                sleep(3)
+                sleep(sleep_time)
                 continue
             else:
                 return r
         else:
             raise Exception(f"Bad Status Code: {r.status_code}, {r.content.decode()}")
-    raise Exception(f"Bad Gateway, retries exceeded ({retries}).")
+    # raise Exception(f"Bad Gateway, retries exceeded ({retries}).")
+    logger.debug("bad gateway!!!")
+    return r
 
 
 def check_for_daily_updates() -> bool:
